@@ -1,297 +1,122 @@
-<p align="center">
-  <a href="https://models.dev">
-    <picture>
-      <source srcset="./logo-dark.svg" media="(prefers-color-scheme: dark)">
-      <source srcset="./logo-light.svg" media="(prefers-color-scheme: light)">
-      <img src="./logo-light.svg" alt="Models.dev logo">
-    </picture>
-  </a>
-</p>
+# Cogine Modelspage
 
----
+Modelspage 发布公共模型资料、经过核验的身份关联和 C/P/N 排序事实，帮助 CogineWork 在不发版的情况下更新模型发现信息。选择器、排序切换和搜索使用本地完整版本，无需临时联网。公共资料不能增加账户可用模型、授予免费资格或改变请求 ID、地址和路由。
 
-[Models.dev](https://models.dev) is a comprehensive open-source database of AI model specifications, pricing, and capabilities.
+这是 [cogine-ai/modelspage](https://github.com/cogine-ai/modelspage) 独立维护的静态数据项目，基于 [anomalyco/models.dev](https://github.com/anomalyco/models.dev) 的完整 Git 历史。上游目录、解析器、MIT [LICENSE](LICENSE) 和版权保留；自有扩展集中在 [`cogine/`](cogine/)。原始 [README](cogine/docs/upstream/README.md) 和 [贡献规则](cogine/docs/upstream/AGENTS.md) 可查。导入的上游 workflows 已移到惰性 [归档](cogine/docs/upstream/workflows/)，本项目不运行上游网站部署、遥测、SDK 发布或机器人。
 
-There's no single database with information about all the available AI models. We started Models.dev as a community-contributed project to address this. We also use it internally in [opencode](https://opencode.ai).
+## 当前交付状态
 
-## API
+| 项目 | 首版状态与限制 |
+| --- | --- |
+| 上游资料 | 复用上游 v2 生成器；固定输入 commit 和树 hash，不下载 models.dev API 快照冒充同版本 |
+| N / 新 | 保留日期精度；仅经审核、对应具体版本且已经发生的日精度日期参与排序；原始 release_date 不自动视为可信首次日期 |
+| P / 多 | 已实现 OpenRouter 周热度接口采集、分页/总量/结束校验、失败保留、来源状态；接口及派生结果使用条件未确认，生产未启用；无逐项覆盖证据的尾部不能冒充精确热度名次 |
+| C / 好 | 已实现 metric profile、校验和投影入口；没有启用合法且可比较的生产评测，能力事实为 unknown，尚无可运营能力榜 |
+| 消费端 | 纯匹配/投影及缓存参考实现、正反例和测试；没有修改 CogineWork |
+| 发布 | 已实现 R2 S3 条件发布、远端/公开路径校验、无凭据持久化 dry-run、回退；真实生产默认关闭 |
+| 生产环境 | 未配置自定义域名、独立桶或 Secret；未声称 CDN 已上线，未执行认证和真实部署 |
 
-You can access this data through an API.
+具体命令与验收证据见 [验收记录](cogine/docs/acceptance.md)，字段和 Provider 覆盖以每次构建生成的报告为准。
 
-```bash
-curl https://models.dev/api.json
+## 数据流程与职责
+
+1. **上游层**：`models/`、`providers/`、`packages/core/` 保留上游组织；[`upstream.lock.json`](cogine/upstream.lock.json) 固定实际代码输入。独立下载的其他响应另记 URL、抓取时间与 hash。
+2. **采集层**：[`adapters/`](cogine/src/adapters/) 解释来源语义；公共请求层负责超时、限流、条件请求和退避。不采集用户私有目录或资格。
+3. **审核层**：[`config/`](cogine/config/) 保存字段限定的显式映射、日期核验、纠错/撤回及来源使用条件。人工精选不能充当能力或用量。
+4. **发布层**：构建严格校验的不可变 `catalog.json`，小型 manifest 记录路径、SHA-256 和字节数；客户端只取紧凑事实，不取原始响应或执行脚本。
+
+Provider 模块由 CogineWork 解释真实连接与请求身份。公共模块只对该上下文中已经可用的成员精确关联事实，再在本地形成 capability/popularity/newest 总索引；先排序后搜索/Free 过滤。收藏和任务选模继续由客户端管理。
+
+## 本地运行
+
+固定环境为 **Bun 1.4.4**，见 [`.bun-version`](.bun-version)、`packageManager` 和 [`bun.lock`](bun.lock)。安装 Bun 后进入本仓库根目录：
+
+```sh
+bun --version
+bun install --frozen-lockfile --ignore-scripts
+bun run typecheck
+bun run schema:check
+bun run test:cogine
+bun run build:fixture
+bun run validate:release --input dist/fixture
+bun run publish:dry-run
 ```
 
-Specialized model types are omitted by default. Filter by one or more
-comma-separated model types, or use `all` for the complete catalog:
+安装依赖需要网络；安装完成后，上述类型检查、测试、fixture 构建和 dry-run 不需要外网或任何秘密。fixture 中的模型、分数与许可均为明确的合成测试资料，发布器拒绝把它们发送到生产。重复 `build:fixture` 得到相同内容；重复 dry-run 为无变化，不会制造新版本。
 
-```bash
-curl "https://models.dev/api.json?type=decision"
-curl "https://models.dev/api.json?type=all"
+使用当前固定的真实上游目录，显式给定构建时钟和发布序号：
+
+```sh
+bun run build --published-at 2026-10-26T00:00:00.000Z --sequence 1 --out-dir dist/public
+bun run validate:release --input dist/public
+bun run coverage --published-at 2026-10-26T00:00:00.000Z --sequence 1 --out-dir dist/public
 ```
 
-The currently supported model type is `decision`. The `type` parameter is also
-available on `models.json`, `catalog.json`, and `model-schema.json`.
+序号只是本地样例；发布前必须读取目标环境当前 manifest，使用更高序号。构建不自动取当前时间，固定输入、构建版本、时钟与序号可复现。没有事实变化时保留现有快照与资料时间，不为每日调度创建新生产发布。
 
-Use the **Model ID** field to do a lookup on any model; it's the identifier used by [AI SDK](https://ai-sdk.dev/).
+采集与探测分开：
 
-Provider-agnostic model metadata is available separately:
-
-```bash
-curl https://models.dev/models.json
+```sh
+bun run collect
+bun run collect --fixture --now 2026-10-26T00:00:00.000Z
+bun run collect --probe
 ```
 
-Use this for facts about the model itself, independent of where it is served. If you need both provider endpoints and model-only metadata in one response:
+`collect` 按已提交的来源配置决定是否联网；默认未启用并报告 disabled。`--probe` 是维护者诊断真实公共接口，结果写到忽略的 `.sync/openrouter.json`，报告写到 `dist/reports/collection.json`，不会自动进入生产构建。`--fixture` 不联网。采集支持 `--state-path`、`--report-path` 和 `--now`，用于复现和 CI。只有经过用途审查的快照才能通过 PR 放入 `cogine/data/openrouter.json`，或在本地显式传 `build --snapshot <路径>`；发布前仍强制核实再分发许可。
 
-```bash
-curl https://models.dev/catalog.json
+## C / P / N 与身份合同
+
+- **C / 好 / 能力优先**：选择一个明确 profile，同一方法、模型快照和推理配置内按分数方向排序。不同 profile 不混排。Artificial Analysis 只是候选来源，未确认公开分发权前不启用；Arena 人类偏好不自动等于通用能力。
+- **P / 多 / 热度优先**：保留 OpenRouter 指定平台近周 token 使用热度的来源顺序。不是全市场用户数；没有数值就不编造 token、调用量或份额。接口快照总量完整不代表每项都有已核实用量覆盖；未上榜、新模型和未知都不等于零。
+- **N / 新 / 最新发布**：具体版本可信首次公开日期，日精度、已经发生且无冲突。月/年精度保留，未来日期、滚动 alias、上架时间和不可靠日期不参与有效 N。
+
+C/P 平局按可信日期、既定 Provider 次序、精确身份；N 平局按 Provider 次序、原目录位置、精确身份。某模式无证据时按明确兜底规则展示，并解释为未知，不能宣称兜底是能力/热度结论。路由器身份本身不置顶。
+
+`request_model_id` 是实际发给 API 的模型 ID，绝不是单次请求追踪 `request_id`。身份包含 Provider、路由、地区、套餐和协议；大小写、标点、版本、`:free`、`:cloud` 等保留。首版只使用 exact 和经审核且字段适用的显式关联；其余保持 unmatched，维护者可离线审阅候选，未实现模糊匹配生成器。匹配区分 matched / unmatched / ambiguous / conflict，已记录 conflict 优先于 exact。canonical 相同不自动继承三个字段。
+
+详细结构、时间语义和消费示例见 [数据与客户端合同](cogine/docs/data-contract.md)、[`schema/`](cogine/schema/) 和 [`examples/`](cogine/examples/)。
+
+## 配置与生产分发
+
+复制 [`.env.example`](.env.example) 到未提交的 `.env`。非秘密配置为 `MODELSPAGE_PUBLIC_BASE_URL`（真实 HTTPS 自定义域名 origin）、`MODELSPAGE_R2_ACCOUNT_ID`、`MODELSPAGE_R2_BUCKET` 和 `MODELSPAGE_PUBLISH_ENABLED`（默认 false）。秘密为 `MODELSPAGE_R2_ACCESS_KEY_ID`、`MODELSPAGE_R2_SECRET_ACCESS_KEY`。凭据只能访问本项目专用桶，不能复用 CogineWork 正式资产桶。首版公共来源无需账户目录或推理凭据。
+
+公共路径采用一个合并后的紧凑对象：
+
+```text
+/v1/manifest.json
+/v1/revisions/<revision>/catalog.json
 ```
 
-### Logos
+`catalog.json` 合并 facts、metric_profiles、mappings、corrections、source_revisions、attribution 和 module_compatibility；这满足四类数据一致切换，不承诺完整 models.dev API 兼容。上游带下划线的内部 JSON、动态查询、schema 和 logo fallback 不在兼容范围。
 
-Provider logos are available as SVG files:
+生产 `facts` 采用稀疏发布：只携带有效排序证据、显式指标事实及映射/纠错涉及的身份。默认输入中，230 家 Provider 的 11,960 个协议作用域身份用于生成覆盖报告，客户端仅下载 3 条已核验 N 身份；未出现在公共 facts 的客户端模型视为无公共证据，继续参与本地兜底总序，不表示不可用或已退役。未核验的原始日期留在固定的上游资料中，不为每个未知模型重复传输。fixtures 保留较完整的正反例用于合同测试。实际数量以生成报告的 `inventory.model_identity_count` 和 `published_fact_count` 为准。
 
-```bash
-curl https://models.dev/logos/{provider}.svg
+发布先完整校验，上传不可变对象并验证 R2 和自定义域名公开路径，再最后更新 manifest。同路径不同字节拒绝；已有 manifest 使用 ETag 的 If-Match，首次使用 If-None-Match:*。并发失败重读、比较序号，不无条件覆盖。旧版本保留，回退使用更高发布序号；已观察到的撤回/冲突不能因旧输入回退而丢失。
+
+域名和权限配置、缓存/CORS、失败恢复及回退命令见 [部署手册](cogine/docs/deployment.md)。真实发布命令为 `bun run publish --input dist/public`，默认会被关闭开关或缺配置拒绝；无凭据模拟为 `bun run publish --dry-run --input dist/public --state-dir .modelspage/local-public`。
+
+## 同步、维护与 CI
+
+查看上游更新，自动发现其当前默认分支：
+
+```sh
+bun run upstream:sync --check
 ```
 
-Replace `{provider}` with the **Provider ID** (e.g., `anthropic`, `openai`, `google`). If we don't have a provider's logo, a default logo is served instead.
+在干净的独立维护分支上准备保留历史的 merge：
 
-## Contributing
-
-The data is stored in the repo as TOML files; organized by provider and model. The logo is stored as an SVG. This is used to generate this page and power the API.
-
-We need your help keeping the data up to date.
-
-### File Format
-
-Every model file uses the v2 format and starts with `schema = 2`; `bun validate` rejects files without it. The full file schema is in `packages/core/src/schema-v2.ts`, and `AGENTS.md` has the complete contributor rules. The filename (minus `.toml`) is the model ID; never add an `id` field.
-
-### Adding Model Metadata
-
-Model-only facts live in `models/<lab>/<model>.toml`. For example, `models/openai/gpt-5.toml` describes the underlying GPT-5 model, while `providers/openai/models/gpt-5.toml` describes how OpenAI serves it (reasoning controls, cache, pricing).
-
-Lab files hold only what is true on every host:
-
-```toml
-schema = 2
-name = "GPT-5"
-description = "Original GPT-5 workhorse for reasoning, coding, writing, and tool workflows"
-family = "gpt"
-open_weights = false
-knowledge = "2024-09-30"
-release_date = "2025-08-07"
-
-[modalities]
-input = ["text", "image/jpeg", "image/png", "image/gif", "image/webp"]
-output = ["text"]
-
-[capabilities]
-tools = { supported = true }
-reasoning = { supported = true }
-temperature = false
-top_p = false
-top_k = false
-
-[limit]
-context = 400_000
-input = 272_000
-output = 128_000
-
-[[benchmarks]]
-name = "Benchmark Name"
-score = 72.5
-metric = "accuracy"
-source = "https://example.com/results"
-
-[[weights]]
-label = "Model weights"
-url = "https://huggingface.co/example/model"
-format = "safetensors"
+```sh
+git switch -c review/upstream-sync
+bun run upstream:sync --merge
+bun install --frozen-lockfile --ignore-scripts
+bun run typecheck
+bun run test:cogine
+bun validate
+bun run v1:check <同步前固定的上游commit>
 ```
 
-Use MIME types for modalities where the lab documents them. `last_updated` is only needed when it differs from `release_date`. Reasoning controls, `structured_output`, cache, and service tiers are per host and go in provider files.
+脚本保存上游 entry-point 文档/workflows 的惰性归档、保留本项目入口和活动 workflows、记录上游 commit；其他冲突保留 merge 状态并失败，按 [维护手册](cogine/docs/maintenance.md) 解决。不得直接用上游生产部署命令或覆盖 `cogine/`。新来源、身份映射、方法版本、重大纠错和异常删除均通过 PR 审阅。
 
-### Adding a New Provider Model
+[`.github/workflows/`](.github/workflows/) 提供：PR/主分支验证、手动/每日上游同步 PR、手动/每日来源采集，以及受保护 environment 的手动发布。PR 使用只读权限、无生产秘密；生产发布按环境串行并拒绝旧序号。采集产出审核工件；仅当已审查的配置同时允许采集和再分发、且获得完整变化快照时，才由独立最小权限任务创建数据审核 PR。未授权、未修改、失败和部分响应不会生成数据 PR，也不自动发布。调度频率不是上游新鲜度 SLA。
 
-To add a new model, start by checking if the provider already exists in the `providers/` directory. If not, then:
-
-#### 1. Create a Provider
-
-If the provider isn't already in `providers/`:
-
-1. Create a new folder in `providers/` with the provider's ID. For example, `providers/newprovider/`.
-2. Add a `provider.toml` with the provider details:
-
-   ```toml
-   name = "Provider Name"
-   npm = "@ai-sdk/provider" # AI SDK Package name
-   env = ["PROVIDER_API_KEY"] # Environment Variable keys used for auth
-   doc = "https://example.com/docs/models" # Link to provider's documentation
-   ```
-
-   If the provider doesn’t publish an npm package but exposes an OpenAI-compatible endpoint, set the npm field accordingly and include the base URL:
-
-   ```toml
-   npm = "@ai-sdk/openai-compatible" # Use OpenAI-compatible SDK
-   api = "https://api.example.com/v1" # Required with openai-compatible
-   ```
-
-#### 2. Add a Logo (required for new providers)
-
-To add a logo for the provider:
-
-1. Add a `logo.svg` file to the provider's directory (e.g., `providers/newprovider/logo.svg`)
-2. Use SVG format with no fixed size or colors - use `currentColor` for fills/strokes
-
-Example SVG structure:
-
-```svg
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-  <!-- Logo paths here -->
-</svg>
-```
-
-#### 3. Add a Model Definition
-
-Create a new TOML file in the provider's `models/` directory where the filename is the model ID. If the model ID contains `/`, use subfolders: for `openai/gpt-5`, create `openai/gpt-5.toml`.
-
-If the provider didn't create the model, point `base_model` at the lab file (add the lab file first if it's missing) and write only what differs on this host:
-
-```toml
-schema = 2
-base_model = "openai/gpt-5"
-
-[capabilities]
-reasoning = { supported = true, effort = ["minimal", "low", "medium", "high"] }
-structured_output = true
-cache = { implicit = { min_tokens = 1_024 } }
-
-[cost.text.input]
-price = 1.25              # USD per million input tokens
-cache = { read = 0.125 }  # USD per million cached input tokens
-
-[[cost.text.input.overrides]]
-when = { context = { gt = 272_000 } } # long-context pricing
-price = 2.5
-
-[cost.text.output]
-price = 10                # USD per million output tokens
-
-[limit]
-context = 200_000         # optional: only when this host serves a smaller window
-```
-
-Rules:
-
-- `base_model` must point to a file in `models/` using `<lab>/<model-id>`.
-- **Override-only:** do not restate the base's `name`, `description`, dates, `modalities`, `limit`, etc. unless this host actually differs.
-- Plain tables (`[limit]`, `[modalities]`, `[capabilities]`, inline tables) deep-merge; arrays and primitives replace.
-- `base_model_omit` removes inherited fields after merging, e.g. `base_model_omit = ["limit.input"]`.
-- Lifecycle goes in `status` (`alpha`, `beta`, `deprecated`). A model served through a different SDK, base URL, or reasoning field gets an `[api.<protocol>]` table, e.g. `[api.chat-completions] compatibility = { reasoning_field = "reasoning_content" }`.
-- A full definition without `base_model` is only for first-party labs and host-unique models. It has every lab field plus the provider fields.
-
-**Reasoning controls (short):** classify first-party lab vs multi-model relay (not by npm). Copy the underlying model’s controls from the lab's provider entry and same-surface peers: often `effort = ["low", "medium", "high"]` on GPT-style relays, but DeepSeek V4 is `toggle = true` with `effort = ["low", "high", "max"]`, etc. Don't drop controls from uncertainty on relays. Full policy: `AGENTS.md`.
-
-#### 4. Submit a Pull Request
-
-1. Fork this repo
-2. Create a new branch with your changes
-3. Add your provider and/or model files
-4. Open a PR with a clear description
-
-### Validation
-
-Run these before opening a PR (a GitHub Action runs them too):
-
-```bash
-bun validate      # schema, required fields, TOML syntax; rejects non-v2 model files
-bun run v1:check  # lists any change to the published v1 API output
-```
-
-### API Reference
-
-These are the fields of each model in the generated `api.json` (the v1 API). They are API response fields, not file fields: they are derived from the v2 files above (for example `attachment` comes from non-text input modalities, `reasoning_options` from `capabilities.reasoning`, and `cost.input` from `cost.text.input.price`).
-
-Generated provider models that use `base_model` expose its canonical lab/model ID as `canonical_model_id` in `api.json` and `catalog.json`. Consumers can use this field to attribute a provider-specific model ID to its originating lab without guessing from the model name.
-
-**Provider:**
-
-- `name`: String - Display name of the provider
-- `npm`: String - AI SDK Package name
-- `env`: String[] - Environment variable keys used for auth
-- `doc`: String - Link to the provider's documentation
-- `api` _(optional)_: String - OpenAI-compatible API endpoint
-
-**Model:**
-
-- `name`: String — Display name of the model
-- `type` _(optional)_: String — Specialized model behavior; currently supports `decision`
-- `attachment`: Boolean — Supports file attachments
-- `reasoning`: Boolean — Supports reasoning / chain-of-thought
-- `tool_call`: Boolean - Supports tool calling
-- `structured_output` _(optional)_: Boolean — Supports structured output feature
-- `temperature` _(optional)_: Boolean — Supports temperature control
-- `knowledge` _(optional)_: String — Knowledge-cutoff date in `YYYY-MM` or `YYYY-MM-DD` format
-- `release_date`: String — First public release date in `YYYY-MM` or `YYYY-MM-DD`
-- `last_updated`: String — Most recent update date in `YYYY-MM` or `YYYY-MM-DD`
-- `open_weights`: Boolean - Indicate the model's trained weights are publicly available
-- `interleaved` _(optional)_: Boolean or Object — Supports interleaved reasoning: `true`, or an object whose `field` names the format
-- `interleaved.field`: String — Name of the interleaved field (`"reasoning_content"` or `"reasoning_details"`)
-- `cost.input`: Number — Cost per million input tokens (USD)
-- `cost.output`: Number — Cost per million output tokens (USD)
-- `cost.reasoning` _(optional)_: Number — Cost per million reasoning tokens (USD)
-- `cost.cache_read` _(optional)_: Number — Cost per million cached read tokens (USD)
-- `cost.cache_write` _(optional)_: Number — Cost per million cached write tokens (USD)
-- `cost.input_audio` _(optional)_: Number — Cost per million audio input tokens, if billed separately (USD)
-- `cost.output_audio` _(optional)_: Number — Cost per million audio output tokens, if billed separately (USD)
-- `limit.context`: Number — Maximum context window (tokens)
-- `limit.input`: Number — Maximum input tokens
-- `limit.output`: Number — Maximum output tokens
-- `modalities.input`: Array of strings — Supported input modalities (e.g., ["text", "image", "audio", "video", "pdf"])
-- `modalities.output`: Array of strings — Supported output modalities (e.g., ["text"])
-- `status` _(optional)_: String — Supported status:
-  - `alpha` - Indicate the model is in alpha testing
-  - `beta` - Indicate the model is in beta testing
-  - `deprecated` - Indicate the model is no longer served by the provider's public API
-
-### Examples
-
-See existing providers in the `providers/` directory for reference:
-
-- `providers/anthropic/` - Anthropic Claude models
-- `providers/openai/` - OpenAI GPT models
-- `providers/google/` - Google Gemini models
-
-### Working on frontend
-
-Make sure you have [Bun](https://bun.sh/) installed.
-
-```bash
-$ bun install
-$ cd packages/web
-$ bun run dev
-```
-
-And it'll open the frontend at http://localhost:3000
-
-### Manual testing with opencode
-
-You can manually check provider changes with opencode by:
-
-```bash
-$ bun install
-$ cd packages/web
-$ bun run build
-$ OPENCODE_MODELS_PATH="dist/_api.json" opencode
-```
-
-### Questions?
-
-Open an issue if you need help or have questions about contributing.
-
----
-
-Models.dev is created by the maintainers of [SST](https://sst.dev).
-
-**Join our community** [Discord](https://sst.dev/discord) | [YouTube](https://www.youtube.com/c/sst-dev) | [X.com](https://x.com/SST_dev)
+覆盖矩阵由构建生成：按真实上游 Provider inventory 列出字段支持、未覆盖、需认证、无公开来源和未验证，不引用历史“39 家”。输出为 `dist/<输出目录>/reports/coverage.json`、`coverage.md` 和 `sources.json`（默认真实构建为 `dist/public/reports/`），数据许可和真实探测见 [来源核实记录](cogine/docs/source-verification.md) 与 [验收记录](cogine/docs/acceptance.md)。

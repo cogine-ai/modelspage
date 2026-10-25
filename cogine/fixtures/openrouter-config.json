@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "endpoint": "https://openrouter.ai/api/v1/models?sort=top-weekly&output_modalities=all&limit=1000&offset=0",
+  "usage": {
+    "collection": "allowed",
+    "redistribution": "allowed",
+    "evidence": "Synthetic test fixture authored in this repository; not third-party production data"
+  },
+  "ranked_ids": [
+    "example-lab/model-v1"
+  ],
+  "ranking_evidence": "Synthetic fixture explicitly marks first item covered; second item coverage unknown"
+}

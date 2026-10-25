@@ -15,7 +15,7 @@
     }
   },
   "scripts": {
-    "test": "bun test",
+    "test": "bun test cogine/test",
     "validate": "bun ./packages/core/script/validate.ts",
     "v1:check": "bun ./packages/core/script/v1-check.ts",
     "aimlapi:sync": "bun ./packages/core/script/sync-models.ts aimlapi",
@@ -48,10 +48,37 @@
     "models:sync": "bun ./packages/core/script/sync-models.ts",
     "prime:sync": "bun ./packages/core/script/sync-models.ts prime",
     "sync:models": "bun ./packages/core/script/sync-models.ts",
-    "sync:auto-merge": "bun ./packages/core/script/check-sync-auto-merge.ts"
+    "sync:auto-merge": "bun ./packages/core/script/check-sync-auto-merge.ts",
+    "test:cogine": "bun test cogine/test",
+    "test:upstream": "bun test packages/core/test",
+    "typecheck": "tsc --project cogine/tsconfig.json --noEmit",
+    "build:fixture": "bun cogine/src/cli.ts build --fixture --published-at 2026-10-26T00:00:00.000Z --sequence 1 --out-dir dist/fixture",
+    "build": "bun cogine/src/cli.ts build",
+    "collect": "bun cogine/src/cli.ts collect",
+    "coverage": "bun cogine/src/cli.ts coverage",
+    "publish:dry-run": "bun cogine/src/cli.ts publish --dry-run --input dist/fixture --state-dir .modelspage/dry-run",
+    "publish": "bun cogine/src/cli.ts publish",
+    "rollback": "bun cogine/src/cli.ts rollback",
+    "schema:generate": "bun cogine/scripts/schema.ts",
+    "schema:check": "bun cogine/scripts/schema.ts --check",
+    "upstream:sync": "bun cogine/scripts/sync-upstream.ts",
+    "validate:release": "bun cogine/src/cli.ts validate"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1156.0",
     "@cloudflare/workers-types": "^4.20260424.1",
-    "sst": "3.17.23"
+    "sst": "3.17.23",
+    "zod-to-json-schema": "3.24.6",
+    "zod": "3.24.2"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "name": "modelspage",
+  "version": "0.1.0",
+  "packageManager": "bun@1.4.4",
+  "engines": {
+    "bun": "1.4.4"
   }
 }

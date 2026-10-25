@@ -1,0 +1,11 @@
+{
+  "enabled": false,
+  "endpoint": "https://openrouter.ai/api/v1/models?sort=top-weekly&output_modalities=all&limit=1000&offset=0",
+  "usage": {
+    "collection": "unverified",
+    "redistribution": "unverified",
+    "evidence": "Documented public /models API ordering is not an endpoint-specific redistribution license. Review https://openrouter.ai/terms and obtain applicable authorization. The Data API CC BY 4.0 license only covers its named datasets, not this endpoint."
+  },
+  "ranked_ids": [],
+  "ranking_evidence": ""
+}

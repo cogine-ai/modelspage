@@ -7,3 +7,8 @@ dist
 node_modules
 .opencode/package-lock.json
 packages/sdk/src/snapshot.js
+
+# Modelspage local build, probe and publishing state
+.modelspage/
+.env.*
+!.env.example
