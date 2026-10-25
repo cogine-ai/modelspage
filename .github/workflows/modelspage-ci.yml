@@ -3,7 +3,7 @@ name: Modelspage PR validation
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, 'cogine/**']
   workflow_dispatch:
 
 permissions:

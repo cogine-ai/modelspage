@@ -9,7 +9,7 @@
 - 上游：[anomalyco/models.dev](https://github.com/anomalyco/models.dev)，导入其完整 Git 历史。
 - 上游默认分支实测为 dev，固定 commit `4f1231e6bf72d5fa66dc1163599eaaedb607faab`；没有额外 models.dev API 快照。
 - Bun 固定为 1.4.4，本地 `bun --version` 与 CI `.bun-version` 一致。
-- 维护分支：`cogine/initial-release`；安全初始化基线为 `5a379ec41`。最终 HEAD 与 PR 链接见交付报告；可用 `git rev-parse HEAD` 及 `gh pr view` 核实。
+- 维护分支：`cogine/initial-release`；安全初始化基线为 `5a379ec41`，首版实现提交为 `f81f7bffe83dc0934fcf084c84c028efd79b1ec0`。[PR #1](https://github.com/cogine-ai/modelspage/pull/1) 保留人工审核，尚未合并。后续验收文档提交的最终 HEAD 可用 `git rev-parse HEAD` 及 `gh pr view` 核实。
 
 ## 已执行的专项证据
 
@@ -38,6 +38,8 @@
 | `bun run publish --dry-run --input dist/real --state-dir .modelspage/real-dry-run` | PASS；真实目录生成的候选通过无凭据模拟，重复执行 unchanged |
 | `bun cogine/examples/consumer.ts` | PASS；宿主已有两成员在三套索引中保持同一集合，Free 过滤保留一项；不上传目录 |
 | `bun validate` | PASS；继承目录校验通过；输出留在忽略的本地日志 |
+| `bun run v1:check 4f1231e6bf72d5fa66dc1163599eaaedb607faab` | PASS；v1 output is byte-identical |
+| 上游 `schema.test.ts` / `generate-v2.test.ts` 子集复核 | PASS；15 tests，72 assertions；完整生成器测试在复跑时约2.8秒通过 |
 | `bun run upstream:sync --check` | PASS；在线发现 dev，固定 commit 与实际输入一致 |
 | 四份 workflow `Bun.YAML.parse`、`git diff --check` | PASS；执行权限、部署门控和 GitHub 实际 CI 仍分别验证 |
 
@@ -49,7 +51,7 @@
 
 额外运行了 `bun run test:upstream`。未修改的继承测试存在断言失败和默认5秒超时；全量运行已中止，**不报告为通过**。单独复现 `bun test packages/core/test/github-copilot.test.ts --timeout 30000` 为 22 pass、1 fail：`a price update keeps the mid-conversation flags copied from Anthropic`，位置 `packages/core/test/github-copilot.test.ts:308`。该测试涉及未使用的上游 Copilot 采集模块，本次没有改写上游核心来掩盖失败。
 
-额外的 schema / generate-v2 子集首次为14 pass、1个全目录生成超时（测试本身固定15秒上限）；这是扩展验证记录，不影响成功的真实全目录构建证据。继承输入的 `models/`、`providers/`、`packages/core/` 与固定上游 commit 比较无差异。后续复核结果单独追加，不能把全量继承套件宣传为绿灯。
+额外的 schema / generate-v2 子集首次为14 pass、1个全目录生成超时（测试本身固定15秒上限）；结束并行的全套继承测试后复跑为15 pass、72 assertions，生成器测试约2.8秒。继承输入的 `models/`、`providers/`、`packages/core/` 与固定上游 commit 比较无差异。这个复核不代表存在已复现断言失败的全量继承套件通过。
 
 ## 已实现但未执行的外部操作
 
