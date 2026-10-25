@@ -1,0 +1,39 @@
+# Initial workflow registration. Dispatch against the implementation branch until PR #1 is reviewed.
+name: Modelspage PR validation
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: modelspage-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run typecheck
+      - run: bun run schema:check
+      - run: bun run test:cogine
+      - run: bun run build:fixture
+      - run: bun cogine/src/cli.ts validate --input dist/fixture
+      - run: bun run publish:dry-run
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: fixture-build-and-reports
+          path: dist/fixture
+          if-no-files-found: warn
+          retention-days: 7
