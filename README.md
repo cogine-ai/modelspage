@@ -18,6 +18,8 @@ Modelspage 发布公共模型资料、经过核验的身份关联和 C/P/N 排�
 
 具体命令与验收证据见 [验收记录](cogine/docs/acceptance.md)，字段和 Provider 覆盖以每次构建生成的报告为准。
 
+CogineWork 全 Provider 的真实目录刷新、AA 得分关联和多来源 P 试算另有[全盘验证记录](cogine/docs/2026-10-26-full-provider-validation.md)。这是独立诊断工具；它不会使生产构建自动获得 C/P 数据，也不会修改客户端可用成员。
+
 ## 数据流程与职责
 
 1. **上游层**：`models/`、`providers/`、`packages/core/` 保留上游组织；[`upstream.lock.json`](cogine/upstream.lock.json) 固定实际代码输入。独立下载的其他响应另记 URL、抓取时间与 hash。

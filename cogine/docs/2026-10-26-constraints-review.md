@@ -39,6 +39,8 @@
 
 ## C/P 来源事实
 
+以下是早期来源调查的状态。后续专用密钥采集、全量身份关联和真实覆盖结果见[全盘验证记录](2026-10-26-full-provider-validation.md)；本地诊断采集成功不代表生产 adapter 已接入或公开再分发已获授权。
+
 - [Artificial Analysis 官方 API](https://artificialanalysis.ai/data-api) 有综合 Intelligence Index。其 Free API 为内部使用，Pro 的有限外部使用不等于公开逐项 JSON；[Data Platform Terms](https://artificialanalysiscdn.com/legal/ProDataPlatformTerms.pdf) 定义了 structured data 的外部分发和 Commercial Order Form。是否已有相应授权尚未知；没有调用认证接口、购买或发消息联系对方。
 - [OpenRouter Models API](https://openrouter.ai/docs/api/api-reference/models/list-all-models-and-their-properties) 明确提供最近一周 token 顺序。当前本地逐项白名单是额外门槛；来源公开使用条件仍须按实际 endpoint 处理。
 - [OpenRouter Data API](https://openrouter.ai/docs/cookbook/administration/data-api) 的 rankings-daily 明确 CC BY 4.0，需 API key，只有每日 top 50 和 other；不能当成完整周榜，也不能据此宣称广泛覆盖已满足。
