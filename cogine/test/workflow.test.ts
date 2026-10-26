@@ -29,18 +29,18 @@ test("production accepts only the exact current merged PR commit or a manual mai
   await writeFile(join(directory, "gh"), `#!/bin/sh
 case "$*" in
   *git/ref/heads/main*) printf '%s\\n' "$TEST_MAIN_SHA" ;;
-  *commits/*/pulls*) cat "$TEST_PULLS_FILE" ;;
+  *commits/*/pulls*) if [ "$TEST_PULLS_ERROR" = 'true' ]; then echo 'temporary API failure' >&2; exit 1; fi; cat "$TEST_PULLS_FILE" ;;
   *) exit 2 ;;
 esac
 `, { mode: 0o755 });
   const sha = "a".repeat(40);
   const merged = { merged_at: "2026-10-26T00:00:00Z", merge_commit_sha: sha, base: { ref: "main", repo: { full_name: "cogine-ai/modelspage" } } };
-  async function accepts(pulls: unknown[], event = "push", current = sha) {
+  async function accepts(pulls: unknown[], event = "push", current = sha, apiError = false) {
     await writeFile(pullsPath, JSON.stringify([pulls]));
     await writeFile(outputPath, "");
-    const process = Bun.spawn(["bash", "-e", "-c", script], { env: { ...Bun.env, PATH: `${directory}:${Bun.env.PATH}`, GITHUB_REPOSITORY: "cogine-ai/modelspage", GITHUB_OUTPUT: outputPath, COMMIT_SHA: sha, EVENT_NAME: event, TEST_MAIN_SHA: current, TEST_PULLS_FILE: pullsPath }, stdout: "pipe", stderr: "pipe" });
+    const process = Bun.spawn(["bash", "-e", "-c", script], { env: { ...Bun.env, PATH: `${directory}:${Bun.env.PATH}`, GITHUB_REPOSITORY: "cogine-ai/modelspage", GITHUB_OUTPUT: outputPath, COMMIT_SHA: sha, EVENT_NAME: event, TEST_MAIN_SHA: current, TEST_PULLS_FILE: pullsPath, TEST_PULLS_ERROR: String(apiError) }, stdout: "pipe", stderr: "pipe" });
     const code = await process.exited;
-    expect(code).toBe(0);
+    expect(code).toBe(apiError ? 1 : 0);
     return await Bun.file(outputPath).text();
   }
   expect(await accepts([merged])).toBe("publish=true\n");
@@ -51,6 +51,7 @@ esac
   expect(await accepts([merged], "push", "c".repeat(40))).toBe("publish=false\n");
   expect(await accepts([], "workflow_dispatch")).toBe("publish=true\n");
   expect(await accepts([], "workflow_dispatch", "c".repeat(40))).toBe("publish=false\n");
+  expect(await accepts([merged], "push", sha, true)).toBe("");
 });
 
 test("production secrets follow reviewed-main, fixed planning, validation and the initial CPN gate", async () => {
