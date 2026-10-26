@@ -64,11 +64,12 @@ describe("all-provider diagnostic report", () => {
   test("whole membership survives C/P/N including unknown and unavailable refresh; score zero is known", async () => {
     const { directory } = await fixture();
     const report = await generateReport(directory, join(directory, "out"), now);
-    expect(report.summary).toMatchObject({ provider_count: 2, model_rows: 4, latest_refreshed_providers: 1, c_known: 2, p_trial_known: 1, n_day_known: 2 });
+    expect(report.summary).toMatchObject({ provider_count: 2, model_rows: 4, latest_refreshed_providers: 1, c_known: 2, p_trial_known: 2, n_day_known: 2 });
     const alpha = report.models.find(row => row.request_model_id === "alpha")!;
-    expect(alpha.p_trial_score).toBe(15);
+    expect(alpha.p_trial_score).toBe(5);
     const beta = report.models.find(row => row.request_model_id === "beta")!;
-    expect(beta).toMatchObject({ c_score: 0, p_trial_score: null, inventory_basis: "packaged_fallback_not_latest" });
+    expect(beta).toMatchObject({ c_score: 0, p_trial_score: 27, inventory_basis: "packaged_fallback_not_latest" });
+    expect(beta.p_source_evidence.openrouter.score).toBeNull();
     expect(report.models.find(row => row.request_model_id === "Alpha:free")).toMatchObject({ canonical_id: null, c_score: null });
     expect(report.models.find(row => row.request_model_id === "month")).toMatchObject({ n_date: "2026-10", n_precision: "month", n_eligible: false });
     for (const provider of report.providers) for (const field of ["c_order", "p_trial_order", "n_order"]) expect([...provider[field]].sort()).toEqual(report.models.filter(row => row.provider_id === provider.id).map(row => row.request_model_id).sort());
@@ -118,8 +119,15 @@ describe("all-provider diagnostic report", () => {
     const report = await generateReport(directory, join(directory, "out"), now);
     const alpha = report.models.find(row => row.request_model_id === "alpha")!;
     expect(alpha.p_source_scores.openrouter).toBe(20);
-    expect(alpha.p_trial_score).toBeCloseTo(50 / 3);
+    expect(alpha.p_trial_score).toBe(17);
     expect(report.trial_popularity_method.active_sources).toHaveLength(3);
+    await json("sources/openrouter/snapshot.json", { status: "success", complete_response: true, entries: dates.map(date => ({ source_model_id: "lab/alpha", date, metric: "tokens", value: 20 })) });
+    const noDenominator = await generateReport(directory, join(directory, "out-missing-total"), now, 3);
+    const without = noDenominator.models.find(row => row.request_model_id === "alpha")!;
+    expect(without.p_source_scores.openrouter).toBeNull();
+    expect(without.p_trial_score).toBe(5);
+    expect(noDenominator.issues.some(issue => issue.code === "source_daily_denominator_missing")).toBe(true);
+    expect(noDenominator.popularity_window_coverage.map(window => window.independent_models)).toEqual([2, 2, 2, 2]);
   });
   test("metric comparison is global and transitive before Provider tie breaking", () => {
     const rows = [0, 1, 2, 3, 4, 5].map(i => ({ request_model_id: `m${i}`, provider_order: i % 2, source_position: i, c_score: i % 3 ? i : null, p_trial_score: i, n_date: "2026-10-01", n_precision: "day" }));
