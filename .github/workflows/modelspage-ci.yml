@@ -1,8 +1,9 @@
-# Initial workflow registration. Dispatch against the implementation branch until PR #1 is reviewed.
 name: Modelspage PR validation
 
 on:
   pull_request:
+  push:
+    branches: [main, 'cogine/**']
   workflow_dispatch:
 
 permissions:

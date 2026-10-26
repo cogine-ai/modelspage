@@ -1,0 +1,78 @@
+name: Publish reviewed Modelspage revision
+
+on:
+  workflow_dispatch:
+    inputs:
+      publication_sequence:
+        description: 'Strictly increasing publication sequence, greater than the current production manifest'
+        required: true
+        type: string
+      published_at:
+        description: 'Fixed UTC publication timestamp, e.g. 2026-10-26T00:00:00.000Z'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: modelspage-production-publication
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'cogine-ai/modelspage' && github.ref == 'refs/heads/main'
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
+      PUBLICATION_TIME: ${{ inputs.published_at }}
+    steps:
+      - name: Require explicit protected-environment publish enablement
+        env:
+          MODELSPAGE_PUBLISH_ENABLED: ${{ vars.MODELSPAGE_PUBLISH_ENABLED }}
+        run: |
+          if [ "$MODELSPAGE_PUBLISH_ENABLED" != 'true' ]; then
+            echo 'Production publishing is disabled; configure the production environment before retrying.'
+            exit 1
+          fi
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run typecheck
+      - run: bun run schema:check
+      - run: bun run test:cogine
+      - name: Verify current public revision as last-good input
+        run: bun cogine/src/cli.ts fetch-current --out-dir .modelspage/active
+        env:
+          MODELSPAGE_PUBLIC_BASE_URL: ${{ vars.MODELSPAGE_PUBLIC_BASE_URL }}
+      - name: Build pinned reviewed inputs
+        run: |
+          previous=()
+          if [ -f .modelspage/active/catalog.json ]; then
+            previous=(--previous .modelspage/active/catalog.json)
+          fi
+          bun cogine/src/cli.ts build --published-at "$PUBLICATION_TIME" --sequence "$PUBLICATION_SEQUENCE" --out-dir dist/production "${previous[@]}"
+      - run: bun cogine/src/cli.ts validate --input dist/production
+      - name: Upload immutable objects and conditionally switch manifest
+        run: bun cogine/src/cli.ts publish --input dist/production
+        env:
+          MODELSPAGE_PUBLISH_ENABLED: ${{ vars.MODELSPAGE_PUBLISH_ENABLED }}
+          MODELSPAGE_PUBLIC_BASE_URL: ${{ vars.MODELSPAGE_PUBLIC_BASE_URL }}
+          MODELSPAGE_R2_ACCOUNT_ID: ${{ vars.MODELSPAGE_R2_ACCOUNT_ID }}
+          MODELSPAGE_R2_BUCKET: ${{ vars.MODELSPAGE_R2_BUCKET }}
+          MODELSPAGE_R2_ACCESS_KEY_ID: ${{ secrets.MODELSPAGE_R2_ACCESS_KEY_ID }}
+          MODELSPAGE_R2_SECRET_ACCESS_KEY: ${{ secrets.MODELSPAGE_R2_SECRET_ACCESS_KEY }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: reviewed-production-build
+          path: dist/production
+          if-no-files-found: warn
+          retention-days: 30

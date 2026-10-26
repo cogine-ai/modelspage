@@ -1,0 +1,191 @@
+{
+  "fixture": true,
+  "facts": [
+    {
+      "identity": {
+        "provider": "example-lab",
+        "request_model_id": "model-v1",
+        "scope": {
+          "route": "public",
+          "region": "global",
+          "plan": "public",
+          "protocol": "chat-completions"
+        }
+      },
+      "display_name": "Same Display Name",
+      "release": {
+        "state": "known",
+        "value": {
+          "date": "2026-01-15",
+          "precision": "day",
+          "verified": true,
+          "version_specific": true
+        },
+        "source_id": "models-dev",
+        "retrieved_at": "2026-10-20T00:00:00Z",
+        "data_as_of": null,
+        "evidence": "Synthetic exact-version release fixture; not production data"
+      },
+      "capability": {
+        "state": "unknown",
+        "reason": "No production capability metrics; fixture also defaults unknown"
+      },
+      "popularity": {
+        "state": "unknown",
+        "reason": "No popularity evidence"
+      }
+    },
+    {
+      "identity": {
+        "provider": "example-lab",
+        "request_model_id": "model-v2",
+        "scope": {
+          "route": "public",
+          "region": "global",
+          "plan": "public",
+          "protocol": "chat-completions"
+        }
+      },
+      "display_name": "Same Display Name",
+      "release": {
+        "state": "known",
+        "value": {
+          "date": "2026-02-10",
+          "precision": "day",
+          "verified": true,
+          "version_specific": true
+        },
+        "source_id": "models-dev",
+        "retrieved_at": "2026-10-20T00:00:00Z",
+        "data_as_of": null,
+        "evidence": "Synthetic exact-version release fixture; not production data"
+      },
+      "capability": {
+        "state": "unknown",
+        "reason": "No production capability metrics; fixture also defaults unknown"
+      },
+      "popularity": {
+        "state": "unknown",
+        "reason": "No popularity evidence"
+      }
+    },
+    {
+      "identity": {
+        "provider": "openrouter",
+        "request_model_id": "example-lab/model-v1",
+        "scope": {
+          "route": "public",
+          "region": "global",
+          "plan": "public",
+          "protocol": "chat-completions"
+        }
+      },
+      "display_name": "Same Display Name",
+      "release": {
+        "state": "known",
+        "value": {
+          "date": "2026-01-15",
+          "precision": "day",
+          "verified": true,
+          "version_specific": true
+        },
+        "source_id": "models-dev",
+        "retrieved_at": "2026-10-20T00:00:00Z",
+        "data_as_of": null,
+        "evidence": "Synthetic exact-version release fixture; not production data"
+      },
+      "capability": {
+        "state": "unknown",
+        "reason": "No production capability metrics; fixture also defaults unknown"
+      },
+      "popularity": {
+        "state": "unknown",
+        "reason": "No popularity evidence"
+      }
+    },
+    {
+      "identity": {
+        "provider": "openrouter",
+        "request_model_id": "example-lab/model-v2:free",
+        "scope": {
+          "route": "public",
+          "region": "global",
+          "plan": "public",
+          "protocol": "chat-completions"
+        }
+      },
+      "display_name": "Same Display Name",
+      "release": {
+        "state": "unknown",
+        "reason": "Version-specific release date not verified"
+      },
+      "capability": {
+        "state": "unknown",
+        "reason": "No production capability metrics; fixture also defaults unknown"
+      },
+      "popularity": {
+        "state": "unknown",
+        "reason": "No popularity evidence"
+      }
+    },
+    {
+      "identity": {
+        "provider": "example-lab",
+        "request_model_id": "model-v2:cloud",
+        "scope": {
+          "route": "public",
+          "region": "global",
+          "plan": "public",
+          "protocol": "chat-completions"
+        }
+      },
+      "display_name": "Same Display Name",
+      "release": {
+        "state": "unknown",
+        "reason": "Version-specific release date not verified"
+      },
+      "capability": {
+        "state": "unknown",
+        "reason": "No production capability metrics; fixture also defaults unknown"
+      },
+      "popularity": {
+        "state": "unknown",
+        "reason": "No popularity evidence"
+      }
+    },
+    {
+      "identity": {
+        "provider": "example-lab",
+        "request_model_id": "model-month",
+        "scope": {
+          "route": "public",
+          "region": "global",
+          "plan": "public",
+          "protocol": "chat-completions"
+        }
+      },
+      "display_name": "Monthly fixture",
+      "release": {
+        "state": "known",
+        "value": {
+          "date": "2026-03",
+          "precision": "month",
+          "verified": false,
+          "version_specific": false
+        },
+        "source_id": "models-dev",
+        "retrieved_at": "2026-10-20T00:00:00Z",
+        "data_as_of": null,
+        "evidence": "Synthetic exact-version release fixture; not production data"
+      },
+      "capability": {
+        "state": "unknown",
+        "reason": "No production capability metrics; fixture also defaults unknown"
+      },
+      "popularity": {
+        "state": "unknown",
+        "reason": "No popularity evidence"
+      }
+    }
+  ]
+}

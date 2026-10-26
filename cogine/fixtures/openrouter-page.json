@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "id": "example-lab/model-v1",
+      "name": "Same Display Name"
+    },
+    {
+      "id": "example-lab/model-v2:free",
+      "name": "Same Display Name"
+    }
+  ],
+  "total_count": 2,
+  "links": {
+    "next": null
+  }
+}

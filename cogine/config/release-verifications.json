@@ -1,0 +1,53 @@
+[
+  {
+    "identity": {
+      "provider": "anthropic",
+      "request_model_id": "claude-sonnet-4-5-20250929",
+      "scope": {
+        "route": "public",
+        "region": "global",
+        "plan": "public",
+        "protocol": "messages"
+      }
+    },
+    "date": "2025-09-29",
+    "precision": "day",
+    "evidence": "https://www.anthropic.com/news/claude-sonnet-4-5 (published Sep 29, 2025); pinned upstream explicitly defines this dated API model with that release_date. This review is limited to the named dated model and Messages public global surface; rolling aliases and other hosts are not covered.",
+    "reviewed_by": "modelspage-initialization",
+    "reviewed_at": "2026-10-25T18:04:03Z"
+  },
+  {
+    "identity": {
+      "provider": "anthropic",
+      "request_model_id": "claude-haiku-4-5-20251001",
+      "scope": {
+        "route": "public",
+        "region": "global",
+        "plan": "public",
+        "protocol": "messages"
+      }
+    },
+    "date": "2025-10-15",
+    "precision": "day",
+    "evidence": "https://www.anthropic.com/news/claude-haiku-4-5 — Official announcement first publicly releases Haiku 4.5 on Oct 15, 2025. The exact dated model is explicitly defined by the pinned upstream provider file; its 20251001 suffix is not used as the release date. Review applies only to this exact public global Messages identity; no rolling alias or cross-provider inheritance.",
+    "reviewed_by": "modelspage-initialization",
+    "reviewed_at": "2026-10-25T18:04:03Z"
+  },
+  {
+    "identity": {
+      "provider": "anthropic",
+      "request_model_id": "claude-opus-4-5-20251101",
+      "scope": {
+        "route": "public",
+        "region": "global",
+        "plan": "public",
+        "protocol": "messages"
+      }
+    },
+    "date": "2025-11-24",
+    "precision": "day",
+    "evidence": "https://www.anthropic.com/news/claude-opus-4-5 — Official announcement first releases Opus 4.5 on Nov 24, 2025 and explicitly names claude-opus-4-5-20251101. The suffix and last_updated are not release dates. Review applies only to this exact public global Messages identity; no rolling alias or cross-provider inheritance.",
+    "reviewed_by": "modelspage-initialization",
+    "reviewed_at": "2026-10-25T18:04:03Z"
+  }
+]

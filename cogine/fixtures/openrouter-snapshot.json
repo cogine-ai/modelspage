@@ -1,0 +1,40 @@
+{
+  "source": {
+    "id": "openrouter-weekly",
+    "status": "success",
+    "url": "https://fixtures.invalid/openrouter/models?sort=top-weekly",
+    "retrieved_at": "2026-10-20T00:00:00Z",
+    "data_as_of": null,
+    "sha256": "885849d29c5c631bce1457c996d35fffe05a71d091762ece697f70aae4e507a3",
+    "window": {
+      "start": null,
+      "end": null
+    },
+    "usage": {
+      "collection": "allowed",
+      "redistribution": "allowed",
+      "evidence": "Synthetic test fixture authored in this repository; not third-party production data"
+    },
+    "complete": true
+  },
+  "attempted_at": "2026-10-20T00:00:00Z",
+  "entries": [
+    {
+      "source_model_id": "example-lab/model-v1",
+      "position": 1,
+      "ranking_eligible": true
+    },
+    {
+      "source_model_id": "example-lab/model-v2:free",
+      "position": 2,
+      "ranking_eligible": false
+    }
+  ],
+  "pagination": {
+    "pages": 1,
+    "total": 2,
+    "received": 2,
+    "ended": true
+  },
+  "retained_last_good": false
+}

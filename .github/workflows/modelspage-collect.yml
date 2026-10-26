@@ -1,0 +1,118 @@
+name: Collect configured public sources
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '47 2 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: modelspage-source-collection
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    if: github.repository == 'cogine-ai/modelspage' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      propose: ${{ steps.policy.outputs.propose }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Seed last reviewed snapshot
+        run: |
+          mkdir -p .sync
+          if [ -f cogine/data/openrouter.json ]; then
+            cp cogine/data/openrouter.json .sync/openrouter.json
+          fi
+      - name: Collect or report why the source is disabled
+        run: bun cogine/src/cli.ts collect
+      - name: Gate data proposal on reviewed source terms and complete changed input
+        id: policy
+        run: |
+          # JavaScript template expressions must remain literal for Bun.
+          # shellcheck disable=SC2016
+          bun -e '
+            const config = await Bun.file("cogine/config/openrouter.json").json();
+            const file = Bun.file(".sync/openrouter.json");
+            const snapshot = await file.exists() ? await file.json() : null;
+            const allowed = config.enabled === true && config.usage.collection === "allowed" && config.usage.redistribution === "allowed" && snapshot?.source.complete === true && snapshot?.source.status === "success";
+            await Bun.write(process.env.GITHUB_OUTPUT, `propose=${allowed}\n`);
+          '
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: source-collection-review
+          path: |
+            .sync/openrouter.json
+            dist/reports/collection.json
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: steps.policy.outputs.propose == 'true'
+        with:
+          name: reviewed-source-proposal
+          path: .sync/openrouter.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  propose:
+    needs: collect
+    if: needs.collect.outputs.propose == 'true'
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: reviewed-source-proposal
+          path: .sync/proposal
+      - name: Propose changed reviewed snapshot through PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          mkdir -p cogine/data
+          cp .sync/proposal/openrouter.json cogine/data/openrouter.json
+          git add cogine/data/openrouter.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name 'modelspage-collect[bot]'
+          git config user.email 'modelspage-collect[bot]@users.noreply.github.com'
+          digest=$(bun -e 'console.log((await Bun.file("cogine/data/openrouter.json").json()).source.sha256)')
+          base_commit=$(git rev-parse HEAD)
+          branch="automation/data-openrouter-${digest:0:12}-${base_commit:0:12}"
+          git check-ref-format --branch "$branch"
+          if ! git ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null; then
+            git commit -m 'chore(data): update reviewed OpenRouter public snapshot'
+            git push origin "HEAD:refs/heads/$branch"
+          fi
+          existing=$(gh pr list --head "$branch" --base "$DEFAULT_BRANCH" --state open --json number --jq 'length')
+          if [ "$existing" = '0' ]; then
+            body_file=$(mktemp)
+            cat > "$body_file" <<'BODY'
+          Updates a complete changed public snapshot from a source whose collection and redistribution terms were already reviewed in configuration.
+          Review identity scope, source coverage, anomalous deletions and source order before merging. Counts and data_as_of are never invented. This PR does not publish production data.
+          BODY
+            gh pr create --base "$DEFAULT_BRANCH" --head "$branch" --title 'chore(data): review OpenRouter snapshot' --body-file "$body_file"
+            rm "$body_file"
+          fi
+          gh workflow run modelspage-ci.yml --ref "$branch"
