@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { aaVariantBase, canonicalKeys, compareReportRows, completeDays, generateReport, meanCompleteShares } from "../scripts/validation/report.js";
+import { clientContext } from "../scripts/validation/client-context.js";
 
 const now = "2026-10-26T14:00:00.000Z";
 const temporary: string[] = [];
@@ -45,6 +46,14 @@ async function fixture() {
 }
 
 describe("all-provider diagnostic report", () => {
+  test("CogineLLM keeps its native model independently of the remote discovery list", () => {
+    const seed = { id: "cogine/free", name: "Native free", is_free: true };
+    const provider = { adapter: "CogineLLMProvider", fallback_models: [seed] };
+    expect(clientContext(provider, []).map(entry => entry.model)).toEqual([seed]);
+    expect(clientContext(provider, [{ id: "remote" }]).map(entry => entry.model.id)).toEqual(["remote", "cogine/free"]);
+    expect(clientContext(provider, [{ id: "cogine/free" }])).toHaveLength(1);
+    expect(clientContext({ ...provider, adapter: "OpenCodeProvider" }, [{ id: "remote" }]).map(entry => entry.model.id)).toEqual(["remote"]);
+  });
   test("common window excludes the current incomplete UTC day; a missing day never becomes zero", () => {
     expect(completeDays(now)).toEqual(["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24", "2026-10-25"]);
     expect(meanCompleteShares(new Map([["a", 0], ["b", 20]]), ["a", "b"])).toBe(10);
@@ -102,6 +111,25 @@ describe("all-provider diagnostic report", () => {
     expect(report.models.find(row => row.request_model_id === "unsupported-model")).toMatchObject({ included_in_client_context: false, inventory_basis: "live_source_catalog_excluded_by_client" });
     for (const field of ["c_order", "p_trial_order", "n_order"]) expect(report.providers[0]![field]).not.toContain("unsupported-model");
     expect(report.source_associations.filter(row => row.source_id === "artificial-analysis")).toHaveLength(2);
+  });
+  test("native membership survives fresh CogineLLM discovery without being duplicated as source-only", async () => {
+    const { directory, json } = await fixture();
+    const inventory = await Bun.file(join(directory, "inputs/coginework-providers.json")).json();
+    inventory.providers[0].adapter = "CogineLLMProvider";
+    inventory.providers[0].fallback_models = [{ id: "cogine/free", name: "Native free", is_free: true }];
+    await json("inputs/coginework-providers.json", inventory);
+    const refreshed = await Bun.file(join(directory, "refresh/one.json")).json();
+    refreshed.listed_model_ids.push("cogine/free");
+    await json("refresh/one.json", refreshed);
+    const report = await generateReport(directory, join(directory, "out"), now);
+    expect(report.providers[0]).toMatchObject({ client_projected_count: 3, effective_count: 4, source_only_count: 0 });
+    const native = report.models.filter(row => row.request_model_id === "cogine/free");
+    expect(native).toHaveLength(1);
+    expect(native[0]).toMatchObject({ included_in_client_context: true, inventory_basis: "native_packaged_model", metadata_fresh: false, live_membership_confirmed: true, original_model: { id: "cogine/free", name: "Native free", is_free: true } });
+    for (const field of ["c_order", "p_trial_order", "n_order"]) {
+      expect(report.providers[0]![field]).toHaveLength(4);
+      expect(report.providers[0]![field].filter((id: string) => id === "cogine/free")).toHaveLength(1);
+    }
   });
   test("OpenRouter native daily totals are used once, including Other in the denominator", async () => {
     const { directory, json } = await fixture();

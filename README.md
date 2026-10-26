@@ -22,6 +22,8 @@ CogineWork 全 Provider 的真实目录刷新、AA 得分关联和多来源 P �
 
 P 已确认按 OpenRouter 60%、Vercel 30%、Go/Free 10% 固定权重累加并集，任一来源/任一天有观测即可纳入；[规则与 1/2/3 日覆盖](cogine/docs/2026-10-26-popularity-weighted-union.md)记录了当前诊断结果及尚未接入生产的边界。
 
+CW 全部 39 个内置条目、官方注册/Key 入口及 DashScope 控制台迁移见[Provider 账号入口](cogine/docs/2026-10-27-provider-accounts-and-keys.md)。
+
 ## 数据流程与职责
 
 1. **上游层**：`models/`、`providers/`、`packages/core/` 保留上游组织；[`upstream.lock.json`](cogine/upstream.lock.json) 固定实际代码输入。独立下载的其他响应另记 URL、抓取时间与 hash。
