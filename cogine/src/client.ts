@@ -1,6 +1,7 @@
 import { bundleRevision, sha256, stableStringify } from "./integrity.js";
 import { validateBundle, validateManifest } from "./schema.js";
-import { identityKey, type Bundle, type Manifest } from "./types.js";
+import { type Bundle, type Manifest } from "./types.js";
+import { assertCorrectionContinuity } from "./corrections.js";
 
 export const CONSUMER_VERSION = "1.0.0";
 export type VerifiedRelease = { manifest: Manifest; bundle: Bundle; catalog: string };
@@ -29,16 +30,11 @@ export async function verifyRelease(input: unknown, readObject: ReadObject): Pro
   return { manifest, bundle, catalog };
 }
 
-/** Higher publication sequence alone cannot silently drop an already observed withdrawal. */
+/** Higher publication sequence alone cannot silently drop an already observed reviewed correction. */
 export function assertSafeReplacement(previous: VerifiedRelease, next: VerifiedRelease): void {
   if (next.manifest.publication_sequence < previous.manifest.publication_sequence) throw new Error("Older publication cannot replace current cache");
   if (next.manifest.publication_sequence === previous.manifest.publication_sequence && stableStringify(next.manifest) !== stableStringify(previous.manifest)) throw new Error("Publication sequence collision");
-  for (const old of previous.bundle.corrections) {
-    if (old.action === "replace") continue;
-    const replacements = next.bundle.corrections.filter(c => identityKey(c.identity) === identityKey(old.identity) && c.field === old.field && c.sequence >= old.sequence);
-    if (!replacements.length) throw new Error("Observed withdrawal/conflict is missing from replacement catalog");
-    if (replacements.some(c => c.sequence === old.sequence && stableStringify(c) !== stableStringify(old))) throw new Error("Correction history cannot be rewritten");
-  }
+  assertCorrectionContinuity(previous.bundle.corrections, next.bundle.corrections);
 }
 export type CacheSnapshot = { manifest: Manifest; catalog: string; etag: string | null; last_checked_at: number; next_check_at: number; failures: number };
 export type ManifestResponse = { status: 200; manifest: unknown; etag: string | null } | { status: 304; etag?: string | null };

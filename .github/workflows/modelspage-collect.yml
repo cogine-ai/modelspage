@@ -38,6 +38,8 @@ jobs:
       - name: Gate data proposal on reviewed source terms and complete changed input
         id: policy
         run: |
+          # JavaScript template expressions must remain literal for Bun.
+          # shellcheck disable=SC2016
           bun -e '
             const config = await Bun.file("cogine/config/openrouter.json").json();
             const file = Bun.file(".sync/openrouter.json");

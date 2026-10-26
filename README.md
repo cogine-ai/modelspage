@@ -91,7 +91,7 @@ C/P 平局按可信日期、既定 Provider 次序、精确身份；N 平局按 
 
 生产 `facts` 采用稀疏发布：只携带有效排序证据、显式指标事实及映射/纠错涉及的身份。默认输入中，230 家 Provider 的 11,960 个协议作用域身份用于生成覆盖报告，客户端仅下载 3 条已核验 N 身份；未出现在公共 facts 的客户端模型视为无公共证据，继续参与本地兜底总序，不表示不可用或已退役。未核验的原始日期留在固定的上游资料中，不为每个未知模型重复传输。fixtures 保留较完整的正反例用于合同测试。实际数量以生成报告的 `inventory.model_identity_count` 和 `published_fact_count` 为准。
 
-发布先完整校验，上传不可变对象并验证 R2 和自定义域名公开路径，再最后更新 manifest。同路径不同字节拒绝；已有 manifest 使用 ETag 的 If-Match，首次使用 If-None-Match:*。并发失败重读、比较序号，不无条件覆盖。旧版本保留，回退使用更高发布序号；已观察到的撤回/冲突不能因旧输入回退而丢失。
+发布先完整校验，上传不可变对象并验证 R2 和自定义域名公开路径，再最后更新 manifest。同路径不同字节拒绝；已有 manifest 使用 ETag 的 If-Match，首次使用 If-None-Match:*。并发失败重读、比较序号，不无条件覆盖。旧版本保留，回退使用更高发布序号；已观察到的替换纠错、撤回和冲突都必须保留，或由更高字段修订的审核动作明确取代。
 
 域名和权限配置、缓存/CORS、失败恢复及回退命令见 [部署手册](cogine/docs/deployment.md)。真实发布命令为 `bun run publish --input dist/public`，默认会被关闭开关或缺配置拒绝；无凭据模拟为 `bun run publish --dry-run --input dist/public --state-dir .modelspage/local-public`。
 

@@ -96,6 +96,39 @@ describe("OpenRouter source semantics and completeness", () => {
     expect(second.source.retrieved_at).toBe(first.source.retrieved_at);
     expect(second.source.data_as_of).toBeNull();
   });
+  test("irrelevant response fields do not create data changes or replace durable source time/hash", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "modelspage-unchanged-"));
+    const statePath = path.join(directory, "state.json");
+    const reportPath = path.join(directory, "report.json");
+    try {
+      await Bun.write(path.join(directory, "cogine/config/openrouter.json"), JSON.stringify(configuration));
+      const first = await fetchOpenRouter(configuration, { now: "2026-10-25T00:00:00Z", fetcher: mock(page) });
+      const bytes = stableStringify(first);
+      await Bun.write(statePath, bytes);
+      const changedRaw = { ...page, unused_metadata: "new irrelevant value", data: page.data.map((entry: { id: string }) => ({ ...entry, unused_property: "different wire response" })) };
+      const next = await collectOpenRouter({ root: directory, now, statePath, reportPath, fetcher: mock(changedRaw) });
+      expect(next.source.status).toBe("not_modified");
+      expect(next.entries).toEqual(first.entries);
+      expect(next.source.retrieved_at).toBe(first.source.retrieved_at);
+      expect(next.source.sha256).toBe(first.source.sha256);
+      expect(await Bun.file(statePath).text()).toBe(bytes);
+      expect(await Bun.file(reportPath).json()).toMatchObject({ attempted_at: now, source: { status: "not_modified" } });
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+  test("changed IDs, source order or reviewed item eligibility still produce a changed snapshot", async () => {
+    const first = await fetchOpenRouter(configuration, { now: "2026-10-25T00:00:00Z", fetcher: mock(page) });
+    const cases = [
+      { config: configuration, page: { ...page, data: [...page.data].reverse() } },
+      { config: configuration, page: { ...page, data: [{ id: "example-lab/a-different-version" }, page.data[1]] } },
+      { config: { ...configuration, ranked_ids: [], ranking_evidence: "" }, page },
+    ];
+    for (const current of cases) {
+      const next = await fetchOpenRouter(current.config, { now, previous: first, fetcher: mock(current.page) });
+      expect(next.source.status).toBe("success");
+      expect(next.entries).not.toEqual(first.entries);
+      expect(next.source.retrieved_at).toBe(now);
+    }
+  });
 });
 
 test("shared request governance retries rate limits and rejects non-JSON", async () => {

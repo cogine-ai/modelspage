@@ -1,5 +1,7 @@
 # 维护工作流
 
+GitHub Actions 需要组织的 Selected repositories 允许列表包含本仓库。若运行长期 queued 且没有 job，先查看仓库 Actions 设置是否被组织策略禁用，再核实组织允许列表。不要只凭 queued 推断 runner 容量不足。自动上游/数据 PR 还需要组织允许 GitHub Actions 创建 PR；这个权限与只读 CI 分开配置，不应为验证 CI 自动开启。
+
 ## 初始化与上游同步
 
 目标 `cogine-ai/modelspage` 在本次初始化前没有分支或 commit，本地目录为空。导入了 models.dev 完整历史，origin 指向本项目，upstream 指向上游；上游默认分支在导入时为 dev。准确输入与时间保存在 [`upstream.lock.json`](../upstream.lock.json)。没有强推、删除远端分支或引入 submodule。

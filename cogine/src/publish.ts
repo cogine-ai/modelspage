@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Bundle, Manifest } from "./types.js";
-import { identityKey } from "./types.js";
+import { assertCorrectionContinuity } from "./corrections.js";
 import { bundleRevision, sha256, stableStringify } from "./integrity.js";
 import { validateBundle, validateManifest } from "./schema.js";
 import { PreconditionFailed, type Metadata, type ObjectStore, type StoredObject } from "./store.js";
@@ -46,19 +46,6 @@ export function assertPublishable(bundle: Bundle) {
 function validateStored(object: StoredObject, body: string, metadata: Metadata) {
   if (object.body !== body || sha256(object.body) !== sha256(body)) throw new Error("Immutable object collision or corrupt remote bytes");
   if (!object.etag || object.contentType !== metadata.contentType || object.cacheControl !== metadata.cacheControl) throw new Error("Remote object metadata mismatch");
-}
-function assertTombstones(previous: Bundle, next: Bundle) {
-  const latest = new Map<string, Bundle["corrections"][number]>();
-  for (const correction of previous.corrections) {
-    const key = identityKey(correction.identity) + correction.field;
-    if ((latest.get(key)?.sequence ?? -1) < correction.sequence) latest.set(key, correction);
-  }
-  for (const old of latest.values()) {
-    if (old.action === "replace") continue;
-    const candidates = next.corrections.filter(c => identityKey(c.identity) === identityKey(old.identity) && c.field === old.field);
-    const current = candidates.sort((a, b) => b.sequence - a.sequence)[0];
-    if (!current || current.sequence < old.sequence || (current.sequence === old.sequence && stableStringify(current) !== stableStringify(old))) throw new Error("Release would lose a reviewed withdrawal/conflict; rebuild with current correction ledger");
-  }
 }
 export async function publishRelease(store: ObjectStore, release: Release, options: { allowFixture?: boolean; verifyPublic?: PublicVerifier } = {}): Promise<{ status: "published" | "unchanged"; sequence: number; revision: string }> {
   const checked = verifyReleaseBytes(release.manifest, release.catalogBody);
@@ -119,7 +106,7 @@ export async function publishRelease(store: ObjectStore, release: Release, optio
       const activeObject = await store.get(activeManifest.objects.catalog.path);
       if (!activeObject) throw new Error("Active catalog is missing; repair before publishing");
       const previous = verifyReleaseBytes(activeManifest, activeObject.body);
-      assertTombstones(previous.bundle, checked.bundle);
+      assertCorrectionContinuity(previous.bundle.corrections, checked.bundle.corrections);
     }
     try {
       await store.put("v1/manifest.json", manifestBody, manifestMetadata, current ? { ifMatch: current.etag } : { ifNoneMatch: "*" });

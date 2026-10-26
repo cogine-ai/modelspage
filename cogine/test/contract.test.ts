@@ -1,13 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import { applyCorrections } from "../src/corrections.js";
+import { verifyReleaseBytes } from "../src/publish.js";
 import { validateBundle, validateManifest } from "../src/schema.js";
 import { bundle, capability, identity, model, release, seal, timestamp } from "./contract-fixture.js";
 
 describe("public data contract", () => {
   test("committed positive and negative JSON examples exercise public contracts", async () => {
     const root = "cogine/fixtures/contracts/";
-    validateBundle(await Bun.file(root + "valid-catalog.json").json());
-    validateManifest(await Bun.file(root + "valid-manifest.json").json());
+    const catalogText = await Bun.file(root + "valid-catalog.json").text();
+    const manifest = await Bun.file(root + "valid-manifest.json").json();
+    validateBundle(JSON.parse(catalogText));
+    validateManifest(manifest);
+    verifyReleaseBytes(manifest, catalogText);
+    expect(() => verifyReleaseBytes(manifest, catalogText + " ")).toThrow("hash or size");
+    expect(() => verifyReleaseBytes({ ...manifest, objects: { catalog: { ...manifest.objects.catalog, sha256: "0".repeat(64) } } }, catalogText)).toThrow("hash or size");
     for (const name of ["invalid-request-id.json", "invalid-null-state.json"]) {
       const invalid = await Bun.file(root + name).json();
       expect(() => validateBundle(invalid)).toThrow();

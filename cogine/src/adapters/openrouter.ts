@@ -76,7 +76,7 @@ export async function fetchOpenRouter(configuration: OpenRouterConfiguration, op
       const result = await requestJson(next, { fetcher: options.fetcher, sleep: options.sleep, etag: pages.length === 0 && options.previous?.pagination.pages === 1 ? options.previous.etag : undefined });
       if (result.status === "not_modified") {
         if (!options.previous || pages.length) throw new Error("304 without a complete cached snapshot");
-        return { ...options.previous, attempted_at: options.now, source: { ...options.previous.source, status: "not_modified" }, retained_last_good: true };
+        return { ...options.previous, attempted_at: options.now, source: { ...options.previous.source, status: "not_modified", usage: configuration.usage }, retained_last_good: true };
       }
       pages.push(result.body);
       hashes.push(result.sha256);
@@ -92,9 +92,11 @@ export async function fetchOpenRouter(configuration: OpenRouterConfiguration, op
     }
     const result = parseOpenRouterPages(pages, configuration);
     const digest = hashes.length === 1 ? hashes[0]! : sha256(stableStringify(hashes));
-    // Response bytes/hash unchanged: retain source times and avoid false freshness.
-    const unchanged = options.previous?.source.sha256 === digest;
-    return { source: { ...source, status: unchanged ? "not_modified" : "success", retrieved_at: unchanged ? options.previous!.source.retrieved_at : options.now, sha256: digest, complete: true }, attempted_at: options.now, entries: result.entries, etag, pagination: { pages: pages.length, total: result.total, received: result.entries.length, ended: true }, retained_last_good: !!unchanged };
+    // Public input consists of exact IDs, order and reviewed item coverage. Unused response
+    // fields or JSON formatting do not manufacture new source freshness or data proposals.
+    const unchanged = options.previous !== undefined && stableStringify(options.previous.entries) === stableStringify(result.entries);
+    if (unchanged) return { ...options.previous!, source: { ...options.previous!.source, status: "not_modified", usage: configuration.usage }, attempted_at: options.now, retained_last_good: true };
+    return { source: { ...source, status: "success", retrieved_at: options.now, sha256: digest, complete: true }, attempted_at: options.now, entries: result.entries, etag, pagination: { pages: pages.length, total: result.total, received: result.entries.length, ended: true }, retained_last_good: false };
   } catch (error) {
     const partial = error instanceof PartialRankingError || (pages.length > 0 && error instanceof z.ZodError);
     const previous = options.previous;

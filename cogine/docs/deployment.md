@@ -56,7 +56,7 @@ revision 对象使用 `application/json; charset=utf-8`、`public, max-age=31536
 bun run rollback --input dist/previous-verified-release --sequence 3 --published-at 2026-10-26T01:00:00.000Z --dry-run --state-dir .modelspage/dry-run
 ```
 
-去掉 `--dry-run` 及 `--state-dir` 才执行真实发布。回退只以更高序号指向原来的不可变 catalog，不改旧对象或降低序号。若旧 catalog 丢失已经生效的撤回/冲突记录，发布器和客户端会拒绝复活；应先以旧业务输入加当前纠错 ledger 重建，再发布新的更高序号版本。
+去掉 `--dry-run` 及 `--state-dir` 才执行真实发布。回退只以更高序号指向原来的不可变 catalog，不改旧对象或降低序号。若旧 catalog 丢失已经生效的替换纠错、撤回或冲突，发布器和客户端都会拒绝应用；应先以旧业务输入加当前纠错 ledger 重建。纠错内容需要变更时，提交更高字段 sequence 的明确审核动作，再发布新的更高发布序号版本。
 
 撤回在 corrections 配置中提交明确记录及审核依据，通过 PR 后发布更高序号。客户端在正常后台检查周期内收到；不能承诺立即撤回全部离线缓存。
 

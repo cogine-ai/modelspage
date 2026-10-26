@@ -4,7 +4,7 @@ import { applyCorrections } from "./corrections.js";
 import { validateBundle, validateManifest } from "./schema.js";
 import { identityKey, unknown, type Bundle, type Correction, type Manifest, type Mapping, type ModelFacts, type SourceRevision } from "./types.js";
 import { loadFixtureUpstream, loadUpstream, type ReleaseVerification } from "./adapters/upstream.js";
-import { validateOpenRouterSnapshot, type OpenRouterSnapshot } from "./adapters/openrouter.js";
+import { OpenRouterConfig, validateOpenRouterSnapshot, type PopularityEntry } from "./adapters/openrouter.js";
 import { coverageMarkdown, coverageReport, type CoverageReport } from "./coverage.js";
 
 export type BuildOptions = { fixture?: boolean; publishedAt: string; sequence: number; outDir: string; previousBundlePath?: string; openrouterSnapshotPath?: string; root?: string };
@@ -56,17 +56,24 @@ export async function build(options: BuildOptions): Promise<{ bundle: Bundle; ma
   const openrouterPath = options.openrouterSnapshotPath ?? path.join(root, options.fixture ? "cogine/fixtures/openrouter-snapshot.json" : "cogine/data/openrouter.json");
   const snapshotInput = await jsonOr<unknown>(openrouterPath, undefined);
   const snapshot = snapshotInput === undefined ? undefined : validateOpenRouterSnapshot(snapshotInput);
-  const previousOpenrouter = previous?.source_revisions.find((source) => source.id === "openrouter-weekly");
+  const configuration = OpenRouterConfig.parse(await Bun.file(path.join(root, options.fixture ? "cogine/fixtures/openrouter-config.json" : "cogine/config/openrouter.json")).json());
+  // Source bytes may remain valid across a failed collection attempt; publishing authority
+  // comes from the current reviewed configuration, never a frozen snapshot/catalog grant.
+  const previousSource = previous?.source_revisions.find((source) => source.id === "openrouter-weekly");
+  const previousOpenrouter = previousSource ? { ...previousSource, usage: configuration.usage } : undefined;
   let openrouterSource: SourceRevision;
+  let currentOpenrouterEntries: Map<string, PopularityEntry> | undefined;
   if (snapshot) {
-    openrouterSource = snapshot.source;
+    openrouterSource = { ...snapshot.source, usage: configuration.usage };
     const usable = ["success", "not_modified"].includes(snapshot.source.status) && snapshot.source.complete && snapshot.pagination.ended && snapshot.pagination.received === snapshot.pagination.total;
     if (usable && snapshot.source.retrieved_at) {
       const entries = new Map(snapshot.entries.map((entry) => [entry.source_model_id, entry]));
+      currentOpenrouterEntries = entries;
       for (const fact of facts.values()) {
-        if (fact.identity.provider !== "openrouter" || fact.identity.scope.route !== "public" || fact.identity.scope.region !== "global" || fact.identity.scope.plan !== "public" || fact.identity.scope.protocol !== "chat-completions") continue;
+        const applicable = fact.identity.provider === "openrouter" && fact.identity.scope.route === "public" && fact.identity.scope.region === "global" && fact.identity.scope.plan === "public" && fact.identity.scope.protocol === "chat-completions";
         const entry = entries.get(fact.identity.request_model_id);
-        if (entry) fact.popularity = { state: "known", value: { source_id: "openrouter-weekly", source_model_id: entry.source_model_id, position: entry.position, ranking_eligible: entry.ranking_eligible }, source_id: "openrouter-weekly", retrieved_at: snapshot.source.retrieved_at, data_as_of: snapshot.source.data_as_of, evidence: "Position in a complete OpenRouter all-models top-weekly snapshot; not a usage count or guaranteed population rank. Per-item coverage is separately gated." };
+        if (fact.popularity.state === "known" && fact.popularity.source_id === "openrouter-weekly" && (!applicable || !entry)) fact.popularity = unknown("No applicable position in the current complete weekly snapshot; previous position is historical, not zero usage or model unavailability");
+        if (applicable && entry) fact.popularity = { state: "known", value: { source_id: "openrouter-weekly", source_model_id: entry.source_model_id, position: entry.position, ranking_eligible: entry.ranking_eligible }, source_id: "openrouter-weekly", retrieved_at: snapshot.source.retrieved_at, data_as_of: snapshot.source.data_as_of, evidence: "Position in a complete OpenRouter all-models top-weekly snapshot; not a usage count or guaranteed population rank. Per-item coverage is separately gated." };
       }
     } else {
       if (previousOpenrouter) openrouterSource = { ...previousOpenrouter, status: snapshot.source.status, error: snapshot.source.error ?? "Retaining the last complete input while current collection is unavailable" };
@@ -76,12 +83,16 @@ export async function build(options: BuildOptions): Promise<{ bundle: Bundle; ma
       }
     }
   } else {
-    const configuration = await Bun.file(path.join(root, "cogine/config/openrouter.json")).json();
     openrouterSource = previousOpenrouter ? { ...previousOpenrouter, status: "disabled", error: "No persisted local source snapshot; retaining verified last-good input and its provenance" } : { id: "openrouter-weekly", status: "disabled", url: configuration.endpoint, retrieved_at: null, data_as_of: null, window: { start: null, end: null }, usage: configuration.usage, complete: false, error: "No reviewed persisted source snapshot; transient probes are not production inputs" };
     for (const previousFact of previous?.facts ?? []) {
       const current = facts.get(identityKey(previousFact.identity));
       if (current) current.popularity = structuredClone(previousFact.popularity);
     }
+  }
+  // A retained snapshot cannot keep item-level ranking qualification after its review is
+  // revoked. Keep the historical position/time while disabling its comparison eligibility.
+  for (const fact of facts.values()) {
+    if (fact.popularity.state === "known" && fact.popularity.source_id === "openrouter-weekly") fact.popularity.value.ranking_eligible = fact.popularity.value.ranking_eligible && configuration.ranking_evidence.length > 0 && configuration.ranked_ids.includes(fact.popularity.value.source_model_id);
   }
   const previousCapability = previous?.source_revisions.find((source) => source.id === "capability");
   const currentSources = [upstream.source, openrouterSource, previousCapability ? (previousCapability.status === "disabled" ? previousCapability : { ...previousCapability, status: "disabled" as const, error: "No current capability collector; retaining existing fact provenance" }) : { id: "capability", status: "disabled", retrieved_at: null, data_as_of: null, window: { start: null, end: null }, usage: { collection: "disabled", redistribution: "disabled", evidence: "Artificial Analysis candidate only; production rights and comparable profile not confirmed" }, complete: false } satisfies SourceRevision];
@@ -90,13 +101,25 @@ export async function build(options: BuildOptions): Promise<{ bundle: Bundle; ma
   const sourceRevisions = [...sourcesById.values()].sort((a, b) => a.id.localeCompare(b.id, "en"));
   const attribution = new Map(previous?.attribution.map((entry) => [entry.source_id, entry]) ?? []);
   attribution.set("models-dev", { source_id: "models-dev", license: "MIT", url: "https://github.com/anomalyco/models.dev/blob/" + upstream.source.code_commit + "/LICENSE", text: "Copyright (c) 2025 models.dev; MIT license retained in repository LICENSE." });
-  if (snapshot?.source.usage.redistribution === "allowed") attribution.set("openrouter-weekly", { source_id: "openrouter-weekly", license: options.fixture ? "Synthetic test fixture" : "See reviewed endpoint-specific usage evidence", url: snapshot.source.url ?? "https://openrouter.ai", text: options.fixture ? "Synthetic fixtures only. No real OpenRouter metrics." : "OpenRouter source order; " + snapshot.source.usage.evidence });
+  if (openrouterSource.usage.redistribution === "allowed" && (snapshot || previousOpenrouter)) attribution.set("openrouter-weekly", { source_id: "openrouter-weekly", license: options.fixture ? "Synthetic test fixture" : "See reviewed endpoint-specific usage evidence", url: openrouterSource.url ?? "https://openrouter.ai", text: options.fixture ? "Synthetic fixtures only. No real OpenRouter metrics." : "OpenRouter source order; " + openrouterSource.usage.evidence });
+  else attribution.delete("openrouter-weekly");
   const candidate: Bundle = {
     schema_version: 1, revision: "0".repeat(64), builder_version: "modelspage-1.0.0", publication_sequence: options.sequence, published_at: options.publishedAt,
     source_revisions: sourceRevisions, metric_profiles: previous?.metric_profiles ?? [], attribution: [...attribution.values()].sort((a, b) => a.source_id.localeCompare(b.source_id, "en")),
     module_compatibility: { projection: 1, min_consumer_version: "1.0.0" },
     facts: applyCorrections([...facts.values()].sort((a, b) => identityKey(a.identity).localeCompare(identityKey(b.identity), "en")), corrections), mappings, corrections, fixture: !!options.fixture,
   };
+  // Corrections remain immutable and authoritative. Do not silently rewrite a corrected
+  // field to fit a new snapshot/configuration: stop for a higher reviewed correction instead.
+  for (const fact of candidate.facts) {
+    const popularity = fact.popularity;
+    if (popularity.state !== "known" || popularity.source_id !== "openrouter-weekly" || !popularity.value.ranking_eligible) continue;
+    const entry = currentOpenrouterEntries?.get(popularity.value.source_model_id);
+    const qualified = configuration.ranking_evidence.length > 0 && configuration.ranked_ids.includes(popularity.value.source_model_id);
+    const sameInput = openrouterSource.complete && popularity.retrieved_at === openrouterSource.retrieved_at && popularity.data_as_of === openrouterSource.data_as_of;
+    const samePosition = !currentOpenrouterEntries || (entry?.ranking_eligible && entry.position === popularity.value.position);
+    if (!qualified || !sameInput || !samePosition) throw new Error("Eligible OpenRouter popularity correction is stale or no longer reviewed; add a higher correction for the selected snapshot or retain it as historical ranking_eligible=false");
+  }
   // Operational coverage describes dense source inputs. Clients receive only ranking/audit facts.
   const coverage = coverageReport(candidate);
   if (!options.fixture) candidate.facts = sparsePublicFacts(candidate.facts, mappings, corrections, options.publishedAt);

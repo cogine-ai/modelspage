@@ -14,6 +14,17 @@ export function releasePrecision(date: string): "day" | "month" | "year" | undef
   return undefined;
 }
 
+export function upstreamReleaseFact(date: string | undefined, review: ReleaseVerification | undefined, provenance: { retrievedAt: string; upstreamEvidence: string }): ModelFacts["release"] {
+  const precision = date ? releasePrecision(date) : undefined;
+  if (!date || !precision) return unknown("Upstream has no calendar-valid release date with preserved precision");
+  const reviewApplies = !!review && review.date === date && review.precision === precision;
+  return {
+    state: "known", value: { date, precision, verified: reviewApplies, version_specific: reviewApplies },
+    source_id: "models-dev", retrieved_at: provenance.retrievedAt, data_as_of: null,
+    evidence: reviewApplies ? review.evidence : provenance.upstreamEvidence,
+  };
+}
+
 export async function loadUpstream(root: string, verifications: ReleaseVerification[]): Promise<UpstreamInput> {
   const lock = await Bun.file(path.join(root, "cogine/upstream.lock.json")).json() as { commit: string; imported_at: string; synced_at?: string; repository: string };
   const retrievedAt = lock.synced_at ?? lock.imported_at;
@@ -38,10 +49,9 @@ export async function loadUpstream(root: string, verifications: ReleaseVerificat
         const identity: Identity = { provider: providerId, request_model_id: modelId, scope: { route: "public", region: "global", plan: "public", protocol } };
         const review = verified.get(identityKey(identity));
         const date = model.release_date;
-        const precision = date ? releasePrecision(date) : undefined;
         // Canonical association is retained as metadata. It grants no field inheritance to clients.
         // Unreviewed upstream release dates remain visible facts with verified=false, never active N evidence.
-        const release: ModelFacts["release"] = date && precision ? { state: "known", value: { date, precision, verified: !!review && review.date === date && review.precision === precision, version_specific: !!review }, source_id: "models-dev", retrieved_at: retrievedAt, data_as_of: null, evidence: review?.evidence ?? `${lock.repository}/blob/${lock.commit}/providers/${providerId}/models/${modelId}.toml (resolved upstream release_date; version applicability not independently verified)` } : unknown("Upstream has no calendar-valid release date with preserved precision");
+        const release = upstreamReleaseFact(date, review, { retrievedAt, upstreamEvidence: `${lock.repository}/blob/${lock.commit}/providers/${providerId}/models/${modelId}.toml (resolved upstream release_date; version applicability not independently verified)` });
         facts.push({ identity, display_name: model.name, ...(authored.base_model ? { canonical_id: authored.base_model } : {}), release, capability: unknown("No licensed, comparable production capability metric enabled"), popularity: unknown("No verified weekly popularity association") });
       }
     }

@@ -13,6 +13,11 @@ export function isProtectedPath(file: string): boolean {
   return file === "README.md" || file === "AGENTS.md" || file.startsWith(".github/workflows/");
 }
 
+export function assertProtectedPathsUnchanged(changedPaths: string[]): void {
+  const drift = changedPaths.filter(isProtectedPath);
+  if (drift.length) throw new Error(`Protected paths differ from local version after merge: ${drift.join(", ")}`);
+}
+
 async function git(args: string[], allowFailure = false): Promise<{ code: number; stdout: string; stderr: string }> {
   const process = Bun.spawn(["git", "-c", "core.hooksPath=/dev/null", ...args], { stdout: "pipe", stderr: "pipe" });
   const [code, stdout, stderr] = await Promise.all([
@@ -73,6 +78,8 @@ export async function syncUpstream(merge = false): Promise<void> {
   if (ownFiles) await git(["checkout", ours, "--", ".github/workflows"]);
   await git(["checkout", ours, "--", "README.md", "AGENTS.md"]);
   await git(["add", "README.md", "AGENTS.md", ".github/workflows", "cogine/docs/upstream"]);
+  const stagedPaths = (await git(["diff", "--cached", "--name-only", "-z", ours, "--"])).stdout.split("\0").filter(Boolean);
+  assertProtectedPathsUnchanged(stagedPaths);
 
   const unresolved = (await git(["diff", "--name-only", "--diff-filter=U"])).stdout.split("\n").filter(Boolean);
   if (unresolved.length) {
