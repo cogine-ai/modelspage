@@ -1,6 +1,10 @@
 # R2 分发、失败恢复与回退
 
-生产分发实现位于 [`store.ts`](../src/store.ts) 和 [`publish.ts`](../src/publish.ts)。目前没有真实域名、独立桶或凭据，默认 `MODELSPAGE_PUBLISH_ENABLED=false`；本手册是可执行配置步骤，不表示生产已经部署。
+生产分发实现位于 [`store.ts`](../src/store.ts) 和 [`publish.ts`](../src/publish.ts)。2026-10-26 已使用本地 Wrangler 在账户 `a11312197b2f8ff3e535b8c2f4ac9b22` 创建专用 `modelspage-production` 桶，并通过 Cloudflare API 读回确认。桶为 Standard/APAC，无自定义域名，r2.dev 访问关闭，没有发布目录或 manifest。当前登录未列出可用 zone，正式域名待补充；专桶 S3 凭据和公开读取尚未验收。默认 `MODELSPAGE_PUBLISH_ENABLED=false`，服务尚未上线。
+
+首发决策：主要 Provider 和模型的 C/P/N 应有广泛覆盖后再上线；范围和来源选择记录在[约束审计](2026-10-26-constraints-review.md)。不能把每类仅一条事实当成业务覆盖验收完成。
+
+审核 PR 合并到 main 后，workflow 通过只读 GitHub API 核实 exact merge commit 及当前 main SHA，再执行已启用的 production 发布；保留手动重试。它从已验证的当前 manifest 自动派生下一发布序号，以可信提交时间形成固定构建时钟，无需每次人工填序号和时钟。开关关闭时不会写入生产；已有有效版本后的纠错和撤回仍可发布。
 
 ## 本地模拟
 

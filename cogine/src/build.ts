@@ -30,7 +30,7 @@ export function sparsePublicFacts(facts: ModelFacts[], mappings: Mapping[], corr
     return validN || fact.capability.state === "known" || fact.popularity.state === "known" || auditKeys.has(identityKey(fact.identity));
   }).map((fact) => {
     const result = structuredClone(fact);
-    if (result.release.state === "known" && (!result.release.value.verified || !result.release.value.version_specific || result.release.value.date > publishedAt.slice(0, 10))) result.release = unknown("No verified, already public release date applicable to this exact version and surface");
+    if (result.release.state === "known" && (!result.release.value.verified || !result.release.value.version_specific || result.release.value.date > publishedAt.slice(0, 10))) result.release = unknown("No trusted, already public release date applicable to this source model record");
     return result;
   });
 }
@@ -104,7 +104,7 @@ export async function build(options: BuildOptions): Promise<{ bundle: Bundle; ma
   if (openrouterSource.usage.redistribution === "allowed" && (snapshot || previousOpenrouter)) attribution.set("openrouter-weekly", { source_id: "openrouter-weekly", license: options.fixture ? "Synthetic test fixture" : "See reviewed endpoint-specific usage evidence", url: openrouterSource.url ?? "https://openrouter.ai", text: options.fixture ? "Synthetic fixtures only. No real OpenRouter metrics." : "OpenRouter source order; " + openrouterSource.usage.evidence });
   else attribution.delete("openrouter-weekly");
   const candidate: Bundle = {
-    schema_version: 1, revision: "0".repeat(64), builder_version: "modelspage-1.0.0", publication_sequence: options.sequence, published_at: options.publishedAt,
+    schema_version: 1, revision: "0".repeat(64), builder_version: "modelspage-1.0.1", publication_sequence: options.sequence, published_at: options.publishedAt,
     source_revisions: sourceRevisions, metric_profiles: previous?.metric_profiles ?? [], attribution: [...attribution.values()].sort((a, b) => a.source_id.localeCompare(b.source_id, "en")),
     module_compatibility: { projection: 1, min_consumer_version: "1.0.0" },
     facts: applyCorrections([...facts.values()].sort((a, b) => identityKey(a.identity).localeCompare(identityKey(b.identity), "en")), corrections), mappings, corrections, fixture: !!options.fixture,

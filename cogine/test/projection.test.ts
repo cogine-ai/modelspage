@@ -47,7 +47,7 @@ describe("C/P/N total local indexes", () => {
     }
     expect(current).toEqual(original);
   });
-  test("effective N needs exact trusted already occurred version date", () => {
+  test("effective N uses source-trusted already occurred day dates and preserves unknown states", () => {
     for (const fact of [release("2026-10", { precision: "month" }), release("2027-01-01"), release("2026-01-01", { verified: false }), release("2026-01-01", { version_specific: false }), { state: "conflict" as const, reason: "Conflicting release evidence" }, { state: "withdrawn" as const, correction_id: "c", reason: "Bad date" }]) expect(trustedRelease(fact, timestamp)).toBeUndefined();
     const facts = [model("month", { release: release("2026-10", { precision: "month" }) }), model("older", { release: release("2025-01-01") }), model("newer", { release: release("2026-10-02") }), model("future", { release: release("2027-01-01") })];
     expect(ids(project(available(facts), bundle({ facts }), options).newest)).toEqual(["newer", "older", "month", "future"]);

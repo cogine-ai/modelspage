@@ -2,6 +2,8 @@
 
 任务日期：2026-10-26（Asia/Singapore）。本文件记录实际工程证据；长期规则在根 AGENTS.md。
 
+本文件以下内容是首次实现及 PR #1 审核期间的历史记录。PR #1 后来已合并；旧的 N 人工核验门槛及“仅三条有效 N”结论已由用户纠正。后续修正、验证环境、未完成部署与约束问题见 [2026-10-26 约束审计](2026-10-26-constraints-review.md)，不要将历史限制当成当前需求。
+
 ## 仓库与输入
 
 - 工作目录：`/Users/damonalbarn/Work/OrgRepos/ModelsPage`，独立于 CogineWork，没有 submodule。

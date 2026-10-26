@@ -7,6 +7,8 @@ export type Fact<T> =
   | { state: "unknown"; reason: string }
   | { state: "withdrawn"; reason: string; correction_id: string }
   | { state: "conflict"; reason: string };
+// verified records source trust; version_specific records applicability to the source
+// model record. Neither flag requires an independent local/manual date review.
 export type ReleaseDate = { date: string; precision: "day" | "month" | "year"; verified: boolean; version_specific: boolean };
 export type Capability = { profile_id: string; score: number; model_snapshot: string; inference_config: string };
 export type Popularity = { source_id: string; source_model_id: string; position: number; ranking_eligible: boolean };

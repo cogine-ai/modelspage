@@ -40,7 +40,9 @@ catalog 和 manifest 的 revision 必须一致，对象 hash/大小和模块兼�
 
 `retrieved_at` 是实际获取来源资料的时间；`data_as_of` 是来源说明的底层数据更新时间，缺失为 null；`window.start/end` 是来源明确的统计边界，未说明时为 null。只有来源声明的时间才能填入对应字段。来源状态区分 success、not_modified、failed、partial、disabled；失败和部分响应保留最后有效字节及其原时间，不清空事实。
 
-日期 value 保存 `date`、`precision`、`verified` 和 `version_specific`。原始月/年精度可以作为资料保留，但只有四项同时满足可信日精度、已核验、具体版本、已发生，才进入有效 N。上游 release_date 尚未核验时在来源层标为 verified=false；生产选择的审核身份若没有适用日期，则发布 unknown 及原因，不因 canonical 相同自动获得另一个版本的日期。已明确审核的月/年精度保持原精度，不能补造为月初或年初。
+日期 value 保存 `date`、`precision`、`verified` 和 `version_specific`，结构保持 v1 兼容。`verified` 表示采纳该来源的日期事实，`version_specific` 表示该日期适用于来源的这个模型记录；两个字段都不表示 Modelspage 对每条日期做过独立人工核验。对于固定 models.dev commit，由其原解析器完成 `base_model` 继承和覆盖后提供的合法 `release_date` 直接受到信任，两个标记均为 true；不要求命中本地 `release-verifications.json` 白名单，也不根据模型名或滚动 alias 再加一层日期禁用规则。该文件只提供可选补充证据，日期与精度不匹配的旧补充记录不会降低上游日期的可信状态；明确的日期替换、冲突和撤回继续使用 corrections，优先于上游事实。
+
+有效 N 使用已经发生的可信日精度日期。月/年日期保留上游原始精度，不能补造为月初或年初参与日精度排序；缺失或无效日期保持 unknown，未来日期不参与有效 N。不从 created、上架时间或 last_updated 推导发布日期，也不由本项目凭 canonical 相同额外继承日期；这里直接采用的是上游已解析完成的模型记录。
 
 capability value 必须匹配已选 profile 的 source、方法、模型快照与推理配置；同一索引只使用一个 profile。popularity value 保存来源 entry ID、快照位置及 `ranking_eligible`。位置只是来源快照顺序；只有逐项覆盖已核实且使用条件明确的条目才有排序资格，不代表 token 数值或全市场名次。
 

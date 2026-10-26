@@ -1,16 +1,9 @@
 name: Publish reviewed Modelspage revision
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      publication_sequence:
-        description: 'Strictly increasing publication sequence, greater than the current production manifest'
-        required: true
-        type: string
-      published_at:
-        description: 'Fixed UTC publication timestamp, e.g. 2026-10-26T00:00:00.000Z'
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -20,14 +13,44 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  reviewed:
     if: github.repository == 'cogine-ai/modelspage' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      publish: ${{ steps.review.outputs.publish }}
+    steps:
+      - name: Require the current main commit and an exact merged PR
+        id: review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          current=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [ "$current" != "$COMMIT_SHA" ]; then
+            echo 'publish=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$EVENT_NAME" = 'workflow_dispatch' ]; then
+            echo 'publish=true' >> "$GITHUB_OUTPUT"
+          elif gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/commits/$COMMIT_SHA/pulls" |
+            jq -e --arg sha "$COMMIT_SHA" --arg repo "$GITHUB_REPOSITORY" \
+              'any(.[][]; .merged_at != null and .merge_commit_sha == $sha and .base.repo.full_name == $repo and .base.ref == "main")' >/dev/null; then
+            echo 'publish=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'publish=false' >> "$GITHUB_OUTPUT"
+          fi
+  publish:
+    needs: reviewed
+    if: needs.reviewed.outputs.publish == 'true'
     environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
-      PUBLICATION_TIME: ${{ inputs.published_at }}
     steps:
       - name: Require explicit protected-environment publish enablement
         env:
@@ -39,6 +62,7 @@ jobs:
           fi
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
           fetch-depth: 0
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -48,11 +72,17 @@ jobs:
       - run: bun run typecheck
       - run: bun run schema:check
       - run: bun run test:cogine
-      - name: Verify current public revision as last-good input
-        run: bun cogine/src/cli.ts fetch-current --out-dir .modelspage/active
+      - name: Verify current public revision and derive a fixed publication plan
+        id: plan
+        run: |
+          commit_time=$(git show -s --format=%cI HEAD)
+          bun cogine/scripts/production.ts prepare --published-at "$commit_time" --active-dir .modelspage/active
         env:
           MODELSPAGE_PUBLIC_BASE_URL: ${{ vars.MODELSPAGE_PUBLIC_BASE_URL }}
       - name: Build pinned reviewed inputs
+        env:
+          PUBLICATION_SEQUENCE: ${{ steps.plan.outputs.sequence }}
+          PUBLICATION_TIME: ${{ steps.plan.outputs.published_at }}
         run: |
           previous=()
           if [ -f .modelspage/active/catalog.json ]; then
@@ -60,6 +90,15 @@ jobs:
           fi
           bun cogine/src/cli.ts build --published-at "$PUBLICATION_TIME" --sequence "$PUBLICATION_SEQUENCE" --out-dir dist/production "${previous[@]}"
       - run: bun cogine/src/cli.ts validate --input dist/production
+      - name: Require licensed usable C/P/N for the initial production release
+        run: bun cogine/scripts/production.ts check --input dist/production --active-dir .modelspage/active
+      - name: Refuse a build superseded by a newer main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          current=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          test "$current" = "$COMMIT_SHA"
       - name: Upload immutable objects and conditionally switch manifest
         run: bun cogine/src/cli.ts publish --input dist/production
         env:

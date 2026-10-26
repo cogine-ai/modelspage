@@ -94,7 +94,7 @@ export function project<T extends AvailableModel>(available: readonly T[], bundl
     explanations: {
       capability: capabilityEvidence ? `能力优先；profile=${profile!.id}；${profile!.name}；${profile!.task}；${profile!.evaluation_conditions}` : "能力证据未知：没有已选且合法、可比较的 profile 证据。使用可信日期、Provider 展示次序、精确身份兜底；兜底不是能力结论。",
       popularity: popularityEvidence ? `热度优先；source=${options.popularity_source_id}；仅该来源快照的明确映射顺序；不是全市场用户数。` : "热度证据未知：没有可用的同源、逐项覆盖明确的热度顺序。使用可信日期、Provider 展示次序、精确身份兜底；未上榜不等于零。",
-      newest: "首次公开发布的具体版本、可信日精度日期降序；未知日期置后，再按 Provider 展示次序、原目录位置、精确身份。",
+      newest: "按来源提供的模型发布日期（日精度）降序；models.dev 日期沿用上游维护结果。未知、未来及非日精度日期置后，再按 Provider 展示次序、原目录位置、精确身份。",
     },
   };
 }
