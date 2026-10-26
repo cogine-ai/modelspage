@@ -101,6 +101,10 @@ Agnes、各 Coding/Token Plan 及 MiniMax 等当前目录策略是 `catalog_only
 
 来源依据：`provider_catalog.py:241`、`coginellm_provider.py:136`、`provider_manager.py:3800`、`provider.py:721`，均对照固定 CW HEAD。原生 seed 使用随包元数据，不伪装成新抓取资料；本次列表确实含该 ID，因此仅标明实时成员已确认。
 
-目前真实目录刷新成功 8 个 Provider、1,177 个来源 ID、1,115 个远端发现投影；完整诊断 1,416 条记录，其中客户端上下文 1,307、来源补录 109。C 515 /P 241 /日精度 N 1,097 不变。目录响应/hash、历史及最后有效输入保留在忽略目录；没有模型推理、注册登录、购买或生产发布。
+00:19 这次真实目录刷新成功 8 个 Provider、1,177 个来源 ID、1,115 个远端发现投影；完整诊断 1,416 条记录，其中客户端上下文 1,307、来源补录 109。C 515 /P 241 /日精度 N 1,097 不变。目录响应/hash、历史及最后有效输入保留在忽略目录；没有模型推理、注册登录、购买或生产发布。
+
+用户随后告知 CogineLLM 已扩容，台北 **10/27 00:47:42–49** 重新 GET 同一目录：HTTP 200，**128 个来源 ID、127 个远端发现 +1 个原生 `cogine/free` =128 个完整客户端上下文**。相对 00:19 新增 112 个精确 ID、移除 0；新旧 raw hash 不同且分别核对原始字节，历史和 last-good 均保留。该结论限定于本次专用 token 返回的目录，未做推理资格验收。
+
+最新总计为 8 个刷新成功 Provider、1,289 个来源 ID、1,227 个远端发现；完整诊断 **1,528 条**，客户端上下文 1,419、来源补录 109。C/P/N 已知计数不变，新模型的身份关联缺口继续明确记录，不把目录 `created` 或名称相似性当成新的排序事实。完整精确差异留在本地 `.modelspage/full-validation/refresh/coginellm-recheck-diff.json`，没有提交认证原始目录。
 
 完整入口逐项证据在本地 `.modelspage/full-validation/provider-links-{asia,global}.json`；注册入口公开资料不含密钥。CW 源码未修改。新增原生模型保留回归后，固定 Bun 1.4.4 完整套件为 118 pass、0 fail、679 assertions；类型检查和 schema 一致性通过。
