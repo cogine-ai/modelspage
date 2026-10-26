@@ -1,5 +1,7 @@
 # P：固定权重累加并集（2026-10-26）
 
+最新 Provider 认证刷新和身份桥补齐后的覆盖见 [2026-10-27 全量补验](2026-10-27-full-keyed-provider-validation.md)；本页保留权重决策及当时输入的历史证据。
+
 用户已明确 P 应按来源固定权重累加、覆盖取并集；不要求三个来源都覆盖，也不要求每个模型连续七天有记录。本轮确认权重为 **OpenRouter 60%、Vercel AI Gateway 30%、OpenCode Go/Free 10%**，已写入 [`popularity-policy.json`](../config/popularity-policy.json)，状态为 `accepted`。
 
 这取代了[初轮全 Provider 验证](2026-10-26-full-provider-validation.md)的交集试算。初轮的 19 条只是两个基础模型在各 Provider 下的记录，不再作为 P 的准入范围。

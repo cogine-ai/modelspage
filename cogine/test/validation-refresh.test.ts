@@ -77,6 +77,22 @@ describe("source-derived Provider refresh validation", () => {
     expect(trimmed.issues[0]!.model_id).toBe("  Exact-ID:free  ");
   });
 
+  test("owned_by is preserved only as an explicit source string without guessing or normalization", () => {
+    const result = parseModels({ data: [
+      { id: "lab/model", owned_by: "openrouter" },
+      { id: "lab/model:free", owned_by: " OpenRouter " },
+      { id: "missing" },
+      { id: "number", owned_by: 123 },
+      { id: "empty", owned_by: "" },
+    ] }, provider("coginellm"));
+    expect(result.models[0]!.owned_by).toBe("openrouter");
+    expect(result.models[1]!.owned_by).toBe(" OpenRouter ");
+    expect(result.models[2]).not.toHaveProperty("owned_by");
+    expect(result.models[3]).not.toHaveProperty("owned_by");
+    expect(result.models[4]!.owned_by).toBe("");
+    expect(result.models.map(row => row.id)).toEqual(["lab/model", "lab/model:free", "missing", "number", "empty"]);
+  });
+
   test("Zen keeps unknown membership and uses each exact registry transport", () => {
     const issues: Parameters<typeof applyRegistry>[3] = [];
     const result = applyRegistry(provider("opencode"), [{ id: "known" }, { id: "unmapped" }], { opencode: {

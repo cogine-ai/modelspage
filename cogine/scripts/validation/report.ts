@@ -6,6 +6,7 @@ import { validCalendarDate } from "../../src/schema.js";
 import { atomicWrite, sha256, stableStringify } from "../../src/integrity.js";
 import { observedPopularity, observedPopularityPolicySchema } from "../../src/observed-popularity.js";
 import { clientContext } from "./client-context.js";
+import { catalogSourceModels, resolveSourceCanonicalBridge, resolveUpstreamIdentityRoute, type SourceCanonicalBridge } from "./identity-adapters.js";
 
 // This diagnostic report deliberately does not publish a production Bundle or
 // change a consumer's available membership, request IDs, routes or selected model.
@@ -66,8 +67,23 @@ function exactCanonical(reg: Registry, providerIds: string[], id: string): Link 
 async function optionalJson(path: string): Promise<Row | null> { try { return JSON.parse(await readFile(path, "utf8")); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return null; throw error; } }
 async function sourceLinks(reg: Registry, sourceDir: string) {
   const orAliases = new Map<string, Set<string>>();
-  const orCatalog = await optionalJson(join(sourceDir, "openrouter/models-top-weekly-diagnostic.json"));
-  for (const row of orCatalog?.data ?? []) {
+  // Keep historic slugs as well as the fresh catalog: a renamed route can still
+  // occur in the daily evidence window. Conflicting bridges stay ambiguous.
+  const orCatalogs = await Promise.all(["models-top-weekly-diagnostic.json", "models-catalog-public-latest.json"].map(file => optionalJson(join(sourceDir, "openrouter", file))));
+  const orRows: Row[] = orCatalogs.flatMap(catalog => catalog?.data ?? []);
+  const slugsById = new Map<string, Set<string>>(), orConflicts = new Map<string, Link>();
+  for (const row of orRows) if (row.id && row.canonical_slug) add(slugsById, row.id, row.canonical_slug);
+  for (const [id, slugs] of slugsById) if (slugs.size > 1) {
+    const identities = [...slugs].map(slug => exactCanonical(reg, ["openrouter"], slug));
+    const current = exactCanonical(reg, ["openrouter"], id);
+    const candidates = [...new Set([current, ...identities].flatMap(link => link.candidates))].sort();
+    // A rename is safe when every native slug independently resolves to the
+    // same model. Otherwise a current route cannot explain its historical IDs.
+    if (candidates.length === 1 && identities.every(link => link.canonical_id === candidates[0])) continue;
+    const conflict: Link = { status: "ambiguous", canonical_id: null, method: "openrouter_catalog_identity_changed", candidates };
+    for (const key of [id, ...slugs]) orConflicts.set(key, conflict);
+  }
+  for (const row of orRows) {
     if (!row.id) continue;
     const canonical = exactCanonical(reg, ["openrouter"], row.id);
     if (!canonical.canonical_id) continue;
@@ -89,6 +105,8 @@ async function sourceLinks(reg: Registry, sourceDir: string) {
     if (sourceId === "vercel-ai-gateway") return linkFrom(vercelNames.get(entry.source_model_id) ?? [], "vercel_source_name_to_its_catalog_id");
     if (sourceId === "opencode-go-free") return exactCanonical(reg, ["opencode-go", "opencode"], entry.source_model_id);
     if (sourceId === "openrouter") {
+      const conflict = orConflicts.get(entry.source_model_id);
+      if (conflict) return conflict;
       const bridged = orAliases.get(entry.source_model_id);
       return bridged?.size ? linkFrom(bridged, "openrouter_canonical_slug_bridge") : exactCanonical(reg, ["openrouter"], entry.source_model_id);
     }
@@ -143,11 +161,36 @@ export async function generateReport(directory: string, outDir: string, now: str
   const refreshIndex = await Bun.file(join(directory, "refresh/index.json")).json();
   const sourceIndex = await Bun.file(join(directory, "sources/index.json")).json();
   const reg = await registry(root, directory), associate = await sourceLinks(reg, join(directory, "sources"));
+  const bridgeFile = join(directory, "inputs/modelscope-self-identity-bridges.json");
+  const bridgeInput = await optionalJson(bridgeFile);
+  const canonicalBridges: SourceCanonicalBridge[] = structuredClone(bridgeInput?.bridges ?? []);
+  const bridgeProblems: Row[] = [];
   const implementationHashes: Record<string, string> = {};
-  for (const file of ["cogine/scripts/validation/inventory.py", "cogine/scripts/validation/refresh.ts", "cogine/scripts/validation/rank-sources.ts", "cogine/scripts/validation/upstream-reference.ts", "cogine/scripts/validation/report.ts", "cogine/scripts/validation/client-context.ts", "cogine/src/integrity.ts", "cogine/src/schema.ts", "cogine/src/observed-popularity.ts", "cogine/config/popularity-policy.json"]) implementationHashes[file] = sha256(await readFile(join(root, file)));
+  for (const file of ["cogine/scripts/validation/inventory.py", "cogine/scripts/validation/refresh.ts", "cogine/scripts/validation/rank-sources.ts", "cogine/scripts/validation/upstream-reference.ts", "cogine/scripts/validation/report.ts", "cogine/scripts/validation/client-context.ts", "cogine/scripts/validation/identity-adapters.ts", "cogine/src/integrity.ts", "cogine/src/schema.ts", "cogine/src/observed-popularity.ts", "cogine/config/popularity-policy.json"]) implementationHashes[file] = sha256(await readFile(join(root, file)));
+  const evidenceHashes: Record<string, string> = {};
+  for (const file of ["inputs/upstream-latest.json", "inputs/modelscope-self-identity-bridges.json", "sources/openrouter/models-top-weekly-diagnostic.json", "sources/openrouter/models-catalog-public-latest.json", "sources/vercel-ai-gateway/catalog-public.json"]) {
+    const path = join(directory, file);
+    if (await Bun.file(path).exists()) evidenceHashes[file] = sha256(await readFile(path));
+  }
+  for (const value of canonicalBridges) {
+    const bridge = value as SourceCanonicalBridge & Row;
+    if (!bridge.source_body_path) throw new Error("Source identity bridge requires its archived evidence");
+    const hash = sha256(await readFile(bridge.source_body_path));
+    if (hash !== bridge.source_sha256) throw new Error("Source identity bridge evidence hash mismatch");
+    evidenceHashes[bridge.source_body_path] = hash;
+    const weights = bridge.upstream_identity?.weights_url;
+    const candidates = weights ? reg.hfKeys.get(weightsUrl(weights)) : undefined;
+    if (bridge.status === "declared" && (!reg.canonicals.has(bridge.canonical_id!) || (weights && !candidates?.has(bridge.canonical_id!)))) throw new Error("Source identity bridge does not resolve in the active upstream reference");
+    if (candidates && candidates.size > 1) {
+      bridge.status = "ambiguous";
+      bridge.precision.ambiguous = true;
+      bridge.active_canonical_candidates = [...candidates].sort();
+      bridgeProblems.push({ code: "source_identity_bridge_became_ambiguous", provider: bridge.provider_id, model: bridge.request_model_id, detail: bridge.active_canonical_candidates });
+    }
+  }
   const configuredPolicy = await Bun.file(join(root, "cogine/config/popularity-policy.json")).json();
   const popularityPolicy = observedPopularityPolicySchema.parse({ ...configuredPolicy, ...(popularityDays !== undefined ? { window_days: popularityDays } : {}) });
-  const problems: Row[] = [], sources: Row[] = [], sourceEntries: Row[] = [];
+  const problems: Row[] = [...bridgeProblems], sources: Row[] = [], sourceEntries: Row[] = [];
   for (const issue of reg.source.schema_diagnostics?.incompatible_files ?? []) problems.push({ code: "latest_upstream_schema_incompatible", source: "models.dev", detail: issue });
   const runNotes = await optionalJson(join(directory, "refresh/run-notes.json"));
   if (runNotes) problems.push({ code: "refresh_process_observations", detail: runNotes });
@@ -171,7 +214,15 @@ export async function generateReport(directory: string, outDir: string, now: str
     values.set(date, (values.get(date) ?? 0) + share);
   }
   for (const source of sourceIndex.sources) {
-    const snapshot = await Bun.file(join(directory, "sources", source.snapshot_path)).json();
+    const snapshotPath = join(directory, "sources", source.snapshot_path);
+    const snapshotBytes = await readFile(snapshotPath);
+    evidenceHashes[join("sources", source.snapshot_path)] = sha256(snapshotBytes);
+    const snapshot = JSON.parse(snapshotBytes.toString("utf8"));
+    for (const raw of snapshot.raw_files ?? []) {
+      const path = join(directory, "sources", raw.path);
+      if (sha256(await readFile(path)) !== raw.sha256) throw new Error("Ranking source evidence hash mismatch");
+      evidenceHashes[join("sources", raw.path)] = raw.sha256;
+    }
     sources.push({ ...source, scope: snapshot.scope, window: snapshot.window, usage: snapshot.usage });
     for (const issue of snapshot.issues ?? []) problems.push({ code: "source_limitation", source: source.source_id, detail: issue });
     const scoreEligible = snapshot.status === "success" && snapshot.complete_response === true;
@@ -188,6 +239,7 @@ export async function generateReport(directory: string, outDir: string, now: str
     for (const entry of snapshot.entries) {
       const association = associate(source.source_id, entry);
       sourceEntries.push({ source_id: source.source_id, ...entry, association });
+      if (association.method === "openrouter_catalog_identity_changed") problems.push({ code: "openrouter_catalog_identity_changed", source: source.source_id, model: entry.source_model_id, detail: association });
       if (!scoreEligible) continue;
       if (entry.date && evidenceDates.includes(entry.date) && ["tokens", "total_tokens"].includes(entry.metric)) {
         if (!observedDates.has(source.source_id)) observedDates.set(source.source_id, new Set());
@@ -230,6 +282,14 @@ export async function generateReport(directory: string, outDir: string, now: str
     if (!summary) throw new Error(`Missing refresh result for ${provider.id}`);
     const result = await Bun.file(summary.path).json();
     const fresh = result.status === "refreshed" && result.membership_complete;
+    const catalogMetadata = new Map<string, Row[]>();
+    if (fresh && provider.id === "coginellm") for (const request of result.requests ?? []) {
+      if (request.status !== 200 || request.stored_body_redacted || !request.body_path) continue;
+      const bytes = await readFile(request.body_path);
+      if (!request.sha256 || sha256(bytes) !== request.sha256) throw new Error("Catalog identity evidence hash does not match its recorded response");
+      evidenceHashes[request.body_path] = request.sha256;
+      for (const [id, entries] of catalogSourceModels(JSON.parse(bytes.toString("utf8")))) catalogMetadata.set(id, [...(catalogMetadata.get(id) ?? []), ...entries]);
+    }
     const context = fresh ? clientContext(provider, result.models) : result.fallback.models.map((model: Row) => ({ model, basis: "packaged_fallback_not_latest" }));
     const effective = context.map((entry: { model: Row }) => entry.model);
     const effectiveIds = new Set(effective.map((model: Row) => model.id));
@@ -250,36 +310,51 @@ export async function generateReport(directory: string, outDir: string, now: str
       const { model, client_context: clientContext, basis } = diagnosticModels[position]!;
       if (seen.has(model.id)) throw new Error(`Duplicate effective model in ${provider.id}`);
       seen.add(model.id);
-      const mapped = provider.modelsdev_provider;
+      const metadata = catalogMetadata.get(model.id) ?? [];
+      const route = metadata.length > 1
+        ? { status: "conflict", provider_id: null, method: "duplicate_catalog_identity", evidence: "Multiple exact catalog rows must not silently overwrite identity metadata." }
+        : resolveUpstreamIdentityRoute({ providerId: provider.id, declaredModelsdevProvider: provider.modelsdev_provider, declaredExpectedBaseUrl: provider.modelsdev_expected_base_url, baseUrl: provider.base_url, requestModelId: model.id, sourceModel: metadata[0] });
+      const mapped = route.provider_id;
       const upstreamRecords = mapped ? reg.byProviderId.get(pairKey(mapped, model.id)) ?? [] : [];
-      const canonical = linkFrom(upstreamRecords.flatMap(row => row.canonical_id ? [row.canonical_id] : []), "declared_coginework_provider_route_and_exact_model_id");
+      const upstreamCanonical = linkFrom(upstreamRecords.flatMap(row => row.canonical_id ? [row.canonical_id] : []), route.method + "_and_exact_model_id");
+      const metricIdentity = (field: "capability" | "popularity") => {
+        const bridge = resolveSourceCanonicalBridge({ providerId: provider.id, baseUrl: provider.base_url, requestModelId: model.id, field }, route.method === "dynamic_gateway_route" ? [] : canonicalBridges);
+        const conflict = route.status === "conflict" || bridge.status === "conflict" || (upstreamCanonical.canonical_id && bridge.canonical_id && upstreamCanonical.canonical_id !== bridge.canonical_id);
+        if (conflict) problems.push({ code: "metric_identity_conflict", provider: provider.id, model: model.id, detail: { field, upstream: upstreamCanonical, bridge } });
+        if (bridge.status === "ambiguous") problems.push({ code: "ambiguous_source_identity_bridge", provider: provider.id, model: model.id, detail: { field, bridge } });
+        if (conflict || upstreamCanonical.status === "ambiguous" || bridge.status === "ambiguous") return { link: linkFrom([], "recorded_identity_conflict_or_ambiguity"), bridge };
+        return { link: upstreamCanonical.canonical_id ? upstreamCanonical : linkFrom(bridge.candidates, "official_self_model_identity_bridge"), bridge };
+      };
+      const capabilityIdentity = metricIdentity("capability"), popularityIdentity = metricIdentity("popularity");
+      const cCanonical = capabilityIdentity.link.canonical_id, pCanonical = popularityIdentity.link.canonical_id;
+      const canonical = upstreamCanonical.status === "ambiguous" ? upstreamCanonical : linkFrom([cCanonical, pCanonical].filter((id): id is string => id !== null), "field_scoped_metric_identity");
       const dates = [...new Set(upstreamRecords.map(row => row.release_date).filter(Boolean))];
       const nDate = dates.length === 1 ? dates[0] : null;
-      const candidateRecords = canonical.canonical_id ? aaByCanonical.get(canonical.canonical_id) ?? [] : [];
-      const exactSlug = candidateRecords.filter(entry => canonicalKeys(canonical.canonical_id!).includes(normalized(entry.source_slug ?? "")));
+      const candidateRecords = cCanonical ? aaByCanonical.get(cCanonical) ?? [] : [];
+      const exactSlug = candidateRecords.filter(entry => canonicalKeys(cCanonical!).includes(normalized(entry.source_slug ?? "")));
       const aaCandidates = exactSlug.length ? exactSlug : candidateRecords;
       const allAaConfigurations = [...new Map(candidateRecords.filter(entry => numeric(entry.value) !== null).map(entry => [entry.source_model_id, entry])).values()];
       const uniqueAa = [...new Map(aaCandidates.filter(entry => numeric(entry.value) !== null).map(entry => [entry.source_model_id, entry])).values()];
       const aa = uniqueAa.length === 1 && aaVersions.size === 1 && !aaVersions.has(undefined) ? uniqueAa[0]! : null;
       const modelShares = new Map(trialSources.flatMap(source => {
-        const values = canonical.canonical_id ? shares.get(source)?.get(canonical.canonical_id) : undefined;
+        const values = pCanonical ? shares.get(source)?.get(pCanonical) : undefined;
         return values ? [[source, values] as const] : [];
       }));
       const popularity = observedPopularity(popularityPolicy, activeDates, modelShares);
       const pValues = Object.fromEntries(Object.entries(popularity.evidence).map(([source, evidence]) => [source, evidence.score]));
       const pTrial = popularity.score;
       const protocol = protocolNames[model.model_protocol] ?? model.model_protocol ?? provider.default_protocol;
-      const row: Row = { provider_id: provider.id, provider_name: provider.name, provider_order: provider.order, request_model_id: model.id, display_name: model.name ?? model.id, model_protocol: protocol, source_position: position, included_in_client_context: clientContext, account_availability: "not_evaluated", provider_selector_declared_visible: provider.show_in_selector ?? null, provider_restricted_in_default_manager: provider.restricted_in_default_manager ?? null, provider_catalog_status: provider.catalog_status ?? null, inventory_basis: basis, metadata_fresh: basis === "live_catalog_client_projection", live_membership_confirmed: fresh && result.listed_model_ids.includes(model.id), latest_refreshed: fresh && (basis !== "native_packaged_model" || result.listed_model_ids.includes(model.id)), refresh_status: result.status, modelsdev_provider: mapped, upstream_record_found: upstreamRecords.length > 0, upstream_parse_status: upstreamRecords[0]?.parse_status ?? (upstreamRecords.length ? "validated" : "missing"), canonical_id: canonical.canonical_id, canonical_status: canonical.status, canonical_candidates: canonical.candidates, n_date: nDate, n_precision: datePrecision(nDate), n_source: upstreamRecords.length ? reg.source.commit : null, c_score: aa ? Number(aa.value) : null, c_status: aa ? "aa_headline_reference_trial" : uniqueAa.length > 1 ? "ambiguous_aa_variants" : "unknown", c_aa_id: aa?.source_model_id ?? null, c_aa_slug: aa?.source_slug ?? null, c_aa_name: aa?.display_name ?? null, c_index_version: aa?.index_version ?? null, c_alternatives: uniqueAa.map(a => ({ id: a.source_model_id, slug: a.source_slug, name: a.display_name, score: a.value, index_version: a.index_version })), p_trial_score: pTrial, p_trial_status: pTrial !== null ? "observed_weighted_union" : "unknown_no_observed_popularity_evidence", p_source_scores: pValues, p_source_evidence: popularity.evidence, p_observed_sources: popularity.observed_sources, p_observed_source_weight: popularity.observed_source_weight, p_observed_day_weight: popularity.observed_day_weight, p_native_ranks: Object.fromEntries([...nativeRanks].flatMap(([source, ranks]) => canonical.canonical_id && ranks.has(canonical.canonical_id) ? [[source, ranks.get(canonical.canonical_id)]] : [])), original_model: model };
+      const row: Row = { provider_id: provider.id, provider_name: provider.name, provider_order: provider.order, request_model_id: model.id, display_name: model.name ?? model.id, model_protocol: protocol, source_position: position, included_in_client_context: clientContext, account_availability: "not_evaluated", provider_selector_declared_visible: provider.show_in_selector ?? null, provider_restricted_in_default_manager: provider.restricted_in_default_manager ?? null, provider_catalog_status: provider.catalog_status ?? null, inventory_basis: basis, metadata_fresh: basis === "live_catalog_client_projection", live_membership_confirmed: fresh && result.listed_model_ids.includes(model.id), latest_refreshed: fresh && (basis !== "native_packaged_model" || result.listed_model_ids.includes(model.id)), refresh_status: result.status, modelsdev_provider: mapped, identity_route_status: route.status, identity_route_method: route.method, identity_route_evidence: route.evidence, upstream_record_found: upstreamRecords.length > 0, upstream_parse_status: upstreamRecords[0]?.parse_status ?? (upstreamRecords.length ? "validated" : "missing"), canonical_id: canonical.canonical_id, c_canonical_id: cCanonical, p_canonical_id: pCanonical, source_canonical_bridges: { capability: capabilityIdentity.bridge, popularity: popularityIdentity.bridge }, canonical_status: canonical.status, canonical_candidates: canonical.candidates, n_date: nDate, n_precision: datePrecision(nDate), n_source: upstreamRecords.length ? reg.source.commit : null, n_field_sources: upstreamRecords.map(record => ({ source_file: record.source_file ?? null, release_date_source: record.release_date_source ?? record.parse_status ?? "fixed_generator", release_date_projection: record.release_date_projection ?? null, excluded_fields: record.excluded_fields ?? [] })), c_score: aa ? Number(aa.value) : null, c_status: aa ? "aa_headline_reference_trial" : uniqueAa.length > 1 ? "ambiguous_aa_variants" : "unknown", c_aa_id: aa?.source_model_id ?? null, c_aa_slug: aa?.source_slug ?? null, c_aa_name: aa?.display_name ?? null, c_index_version: aa?.index_version ?? null, c_alternatives: uniqueAa.map(a => ({ id: a.source_model_id, slug: a.source_slug, name: a.display_name, score: a.value, index_version: a.index_version })), p_trial_score: pTrial, p_trial_status: pTrial !== null ? "observed_weighted_union" : "unknown_no_observed_popularity_evidence", p_source_scores: pValues, p_source_evidence: popularity.evidence, p_observed_sources: popularity.observed_sources, p_observed_source_weight: popularity.observed_source_weight, p_observed_day_weight: popularity.observed_day_weight, p_native_ranks: Object.fromEntries([...nativeRanks].flatMap(([source, ranks]) => pCanonical && ranks.has(pCanonical) ? [[source, ranks.get(pCanonical)]] : [])), original_model: model };
       row.n_eligible = displayDateRank(row, now) !== null;
       row.p_sort_basis = pTrial !== null ? "popularity" : row.c_score !== null ? "capability_fallback" : row.n_eligible ? "release_fallback" : "stable_default_order";
-      if (!mapped) problems.push({ code: "no_declared_modelsdev_provider_route", provider: provider.id, model: model.id });
+      if (!mapped) problems.push({ code: route.status === "conflict" ? "identity_route_conflict" : route.method === "dynamic_gateway_route" ? "dynamic_route_has_no_concrete_model_facts" : "no_declared_modelsdev_provider_route", provider: provider.id, model: model.id, detail: route });
       else if (!upstreamRecords.length) problems.push({ code: "model_missing_from_latest_upstream_provider", provider: provider.id, upstream_provider: mapped, model: model.id });
-      else if (!canonical.canonical_id) problems.push({ code: canonical.status === "ambiguous" ? "ambiguous_canonical" : "upstream_record_has_no_base_model", provider: provider.id, model: model.id });
+      else if (!upstreamCanonical.canonical_id) problems.push({ code: upstreamCanonical.status === "ambiguous" ? "ambiguous_canonical" : "upstream_record_has_no_base_model", provider: provider.id, model: model.id });
       row.c_configuration_policy = "pending; exact canonical slug headline used for diagnostic comparison when unique; never maximum score";
       row.c_alternatives = allAaConfigurations.map(a => ({ id: a.source_model_id, slug: a.source_slug, name: a.display_name, configuration: /\(([^()]*)\)$/.exec(a.display_name ?? "")?.[1] ?? null, score: a.value, index_version: a.index_version, association: a.association }));
-      row.p_missing_source_days = Object.fromEntries(trialSources.map(source => [source, activeDates.filter(date => !canonical.canonical_id || !shares.get(source)?.get(canonical.canonical_id)?.has(date))]));
-      if (canonical.canonical_id && !allAaConfigurations.length) problems.push({ code: "aa_score_missing_for_canonical", provider: provider.id, model: model.id, detail: canonical.canonical_id });
-      if (canonical.canonical_id && pTrial === null) problems.push({ code: "p_no_observed_source_evidence", provider: provider.id, model: model.id, detail: row.p_missing_source_days });
+      row.p_missing_source_days = Object.fromEntries(trialSources.map(source => [source, activeDates.filter(date => !pCanonical || !shares.get(source)?.get(pCanonical)?.has(date))]));
+      if (cCanonical && !allAaConfigurations.length) problems.push({ code: "aa_score_missing_for_canonical", provider: provider.id, model: model.id, detail: canonical.canonical_id });
+      if (pCanonical && pTrial === null) problems.push({ code: "p_no_observed_source_evidence", provider: provider.id, model: model.id, detail: row.p_missing_source_days });
       if (allAaConfigurations.length > 1) problems.push({ code: "multiple_aa_configurations_need_policy", provider: provider.id, model: model.id, detail: { aa_ids: allAaConfigurations.map(entry => entry.source_model_id), selected_trial_headline: aa?.source_model_id ?? null } });
       if (row.n_precision && row.n_precision !== "day") problems.push({ code: "non_day_date_excluded_by_current_n_policy", provider: provider.id, model: model.id, detail: { date: row.n_date, precision: row.n_precision } });
       if (row.n_precision === "day" && !row.n_eligible) problems.push({ code: "future_date_excluded", provider: provider.id, model: model.id, detail: row.n_date });
@@ -303,7 +378,7 @@ export async function generateReport(directory: string, outDir: string, now: str
   for (const [field, orderName] of [["c_score", "c_global_order_position"], ["p_trial_score", "p_trial_global_order_position"], ["n_date", "n_global_order_position"]] as const) {
     [...rows].sort((a, b) => compareReportRows(a, b, field, now)).forEach((row, index) => { row[orderName] = index + 1; });
   }
-  const canonicalIds = new Set<string>(rows.map(row => row.canonical_id).filter(Boolean));
+  const canonicalIds = new Set<string>(rows.map(row => row.p_canonical_id).filter(Boolean));
   const windowCoverage = [1, 2, 3, 7].map(days => {
     const dates = completeDays(now, days), union = new Set<string>(), sameSourceComplete = new Set<string>();
     const dayUnion = new Map<string, Set<string>>();
@@ -322,13 +397,13 @@ export async function generateReport(directory: string, outDir: string, now: str
       }
       return [source, observed.size];
     }));
-    return { days, start: dates[0], end: dates.at(-1), source_counts: sourceCounts, independent_models: union.size, provider_model_records: rows.filter(row => union.has(row.canonical_id)).length, every_day_any_source_models: [...dayUnion.values()].filter(values => values.size === dates.length).length, same_source_full_window_models: sameSourceComplete.size };
+    return { days, start: dates[0], end: dates.at(-1), source_counts: sourceCounts, independent_models: union.size, provider_model_records: rows.filter(row => union.has(row.p_canonical_id)).length, every_day_any_source_models: [...dayUnion.values()].filter(values => values.size === dates.length).length, same_source_full_window_models: sameSourceComplete.size };
   });
   const issuesByCode = Object.fromEntries([...new Set(problems.map(p => p.code))].sort().map(code => [code, problems.filter(p => p.code === code).length]));
-  const report = { schema_version: 1, evaluated_at: now, coginework: inventory.coginework, runtime: { bun: Bun.version }, implementation_sha256: implementationHashes, modelspage_worktree_dirty: new TextDecoder().decode(Bun.spawnSync(["git", "status", "--porcelain"]).stdout).trim().length > 0, modelspage_head: new TextDecoder().decode(Bun.spawnSync(["git", "rev-parse", "HEAD"]).stdout).trim(), input_hashes: { inventory: sha256(await readFile(join(directory, "inputs/coginework-providers.json"))), refresh_index: sha256(await readFile(join(directory, "refresh/index.json"))), sources_index: sha256(await readFile(join(directory, "sources/index.json"))) }, upstream: reg.source, scope: "Every registered built-in Provider, including restricted/retired entries; client_context denotes source-defined protocol projection, not installed visibility or account eligibility; no inference, private settings, OAuth account catalogs or production writes", production_pipeline: { aa_adapter: "not_implemented", canonical_score_inheritance: "not_implemented", multisource_weighted_popularity: "not_implemented", data_for_this_report: "diagnostic_only_not_a_production_catalog" }, trial_popularity_method: { id: popularityPolicy.id, aggregation_status: "accepted_weighted_union", weights_status: popularityPolicy.weights_status, window_days: popularityPolicy.window_days, complete_utc_dates: activeDates, active_sources: trialSources, weights: popularityPolicy.weights, fallback_order: ["P", "C", "N", "existing_stable_order"], missing_policy: "Any observed source/day contributes with fixed global weights and full-window denominator; absent entries stay null and add no observed bonus; all missing means unknown; never per-model weight renormalization", interpretation: "Weighted observed token-heat evidence, not complete platform share, request count or deduplicated market usage" }, popularity_window_coverage: windowCoverage, summary: { provider_count: providers.length, latest_refreshed_providers: providers.filter(p => p.latest_refreshed).length, model_rows: rows.length, latest_refreshed_model_rows: rows.filter(r => r.latest_refreshed).length, client_context_model_rows: rows.filter(r => r.included_in_client_context).length, source_only_model_rows: rows.filter(r => !r.included_in_client_context).length, fallback_model_rows: rows.filter(r => r.inventory_basis === "packaged_fallback_not_latest").length, canonical_known: rows.filter(r => r.canonical_id).length, c_known: rows.filter(r => r.c_score !== null).length, p_trial_known: rows.filter(r => r.p_trial_score !== null).length, p_independent_models: new Set(rows.filter(r => r.p_trial_score !== null).map(r => r.canonical_id)).size, n_day_known: rows.filter(r => r.n_eligible).length, issues_by_code: issuesByCode }, sources, providers, source_associations: sourceEntries, models: rows, issues: problems };
+  const report = { schema_version: 1, evaluated_at: now, coginework: inventory.coginework, runtime: { bun: Bun.version }, implementation_sha256: implementationHashes, modelspage_worktree_dirty: new TextDecoder().decode(Bun.spawnSync(["git", "status", "--porcelain"]).stdout).trim().length > 0, modelspage_head: new TextDecoder().decode(Bun.spawnSync(["git", "rev-parse", "HEAD"]).stdout).trim(), identity_evidence_sha256: evidenceHashes, input_hashes: { inventory: sha256(await readFile(join(directory, "inputs/coginework-providers.json"))), refresh_index: sha256(await readFile(join(directory, "refresh/index.json"))), sources_index: sha256(await readFile(join(directory, "sources/index.json"))) }, upstream: reg.source, scope: "Every registered built-in Provider, including restricted/retired entries; client_context denotes source-defined protocol projection, not installed visibility or account eligibility; no inference, private settings, OAuth account catalogs or production writes", production_pipeline: { aa_adapter: "not_implemented", canonical_score_inheritance: "not_implemented", multisource_weighted_popularity: "not_implemented", data_for_this_report: "diagnostic_only_not_a_production_catalog" }, trial_popularity_method: { id: popularityPolicy.id, aggregation_status: "accepted_weighted_union", weights_status: popularityPolicy.weights_status, window_days: popularityPolicy.window_days, complete_utc_dates: activeDates, active_sources: trialSources, weights: popularityPolicy.weights, fallback_order: ["P", "C", "N", "existing_stable_order"], missing_policy: "Any observed source/day contributes with fixed global weights and full-window denominator; absent entries stay null and add no observed bonus; all missing means unknown; never per-model weight renormalization", interpretation: "Weighted observed token-heat evidence, not complete platform share, request count or deduplicated market usage" }, popularity_window_coverage: windowCoverage, summary: { provider_count: providers.length, latest_refreshed_providers: providers.filter(p => p.latest_refreshed).length, model_rows: rows.length, latest_refreshed_model_rows: rows.filter(r => r.latest_refreshed).length, client_context_model_rows: rows.filter(r => r.included_in_client_context).length, source_only_model_rows: rows.filter(r => !r.included_in_client_context).length, fallback_model_rows: rows.filter(r => r.inventory_basis === "packaged_fallback_not_latest").length, canonical_known: rows.filter(r => r.canonical_id).length, c_known: rows.filter(r => r.c_score !== null).length, p_trial_known: rows.filter(r => r.p_trial_score !== null).length, p_independent_models: new Set(rows.filter(r => r.p_trial_score !== null).map(r => r.p_canonical_id)).size, n_day_known: rows.filter(r => r.n_eligible).length, issues_by_code: issuesByCode }, sources, providers, source_associations: sourceEntries, models: rows, issues: problems };
   await mkdir(outDir, { recursive: true });
   await atomicWrite(join(outDir, "report.json"), stableStringify(report));
-  await atomicWrite(join(outDir, "models.csv"), csvTable(rows, ["provider_id", "request_model_id", "display_name", "model_protocol", "inventory_basis", "metadata_fresh", "live_membership_confirmed", "included_in_client_context", "account_availability", "provider_selector_declared_visible", "provider_restricted_in_default_manager", "provider_catalog_status", "refresh_status", "modelsdev_provider", "canonical_id", "canonical_status", "c_score", "c_aa_slug", "c_index_version", "c_status", "c_alternatives", "c_configuration_policy", "c_order_position", "c_global_order_position", "p_trial_score", "p_trial_status", "p_sort_basis", "p_source_scores", "p_source_evidence", "p_observed_sources", "p_observed_source_weight", "p_observed_day_weight", "p_missing_source_days", "p_trial_order_position", "p_trial_global_order_position", "n_date", "n_precision", "n_eligible", "n_order_position", "n_global_order_position"]));
+  await atomicWrite(join(outDir, "models.csv"), csvTable(rows, ["provider_id", "request_model_id", "display_name", "model_protocol", "inventory_basis", "metadata_fresh", "live_membership_confirmed", "included_in_client_context", "account_availability", "provider_selector_declared_visible", "provider_restricted_in_default_manager", "provider_catalog_status", "refresh_status", "modelsdev_provider", "identity_route_status", "identity_route_method", "identity_route_evidence", "canonical_id", "canonical_status", "c_canonical_id", "p_canonical_id", "source_canonical_bridges", "c_score", "c_aa_slug", "c_index_version", "c_status", "c_alternatives", "c_configuration_policy", "c_order_position", "c_global_order_position", "p_trial_score", "p_trial_status", "p_sort_basis", "p_source_scores", "p_source_evidence", "p_observed_sources", "p_observed_source_weight", "p_observed_day_weight", "p_missing_source_days", "p_trial_order_position", "p_trial_global_order_position", "n_date", "n_precision", "n_eligible", "n_field_sources", "n_order_position", "n_global_order_position"]));
   await atomicWrite(join(outDir, "providers.csv"), csvTable(providers, ["id", "name", "selector_declared_visible", "restricted_in_default_manager", "catalog_status", "account_availability", "refresh_status", "refresh_reason", "listed_count", "client_projected_count", "effective_count", "diagnostic_count", "source_only_count", "fallback_count", "upstream_found", "canonical_known", "c_known", "p_trial_known", "n_known"]));
   await atomicWrite(join(outDir, "issues.csv"), csvTable(problems, ["code", "provider", "model", "model_id", "source", "status", "detail"]));
   await atomicWrite(join(outDir, "source-associations.csv"), csvTable(sourceEntries, ["source_id", "source_model_id", "source_slug", "display_name", "metric", "value", "index_version", "date", "window_label", "is_aggregate", "association"]));

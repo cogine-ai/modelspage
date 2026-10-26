@@ -18,7 +18,7 @@ Modelspage 发布公共模型资料、经过核验的身份关联和 C/P/N 排�
 
 具体命令与验收证据见 [验收记录](cogine/docs/acceptance.md)，字段和 Provider 覆盖以每次构建生成的报告为准。
 
-CogineWork 全 Provider 的真实目录刷新、AA 得分关联和多来源 P 试算另有[全盘验证记录](cogine/docs/2026-10-26-full-provider-validation.md)。这是独立诊断工具；它不会使生产构建自动获得 C/P 数据，也不会修改客户端可用成员。
+CogineWork 全 Provider 的真实目录刷新、AA 得分关联和多来源 P 试算另有[最新全盘验证记录](cogine/docs/2026-10-27-full-keyed-provider-validation.md)。这是独立诊断工具；它不会使生产构建自动获得 C/P 数据，也不会修改客户端可用成员。
 
 P 已确认按 OpenRouter 60%、Vercel 30%、Go/Free 10% 固定权重累加并集，任一来源/任一天有观测即可纳入；[规则与 1/2/3 日覆盖](cogine/docs/2026-10-26-popularity-weighted-union.md)记录了当前诊断结果及尚未接入生产的边界。
 

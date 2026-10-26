@@ -1,5 +1,7 @@
 # CogineWork 全 Provider C/P/N 验证（2026-10-26）
 
+**最新补验：** 已使用本项目补齐的专用变量重新遍历全部 39 项，最新目录、关联覆盖和全部问题见 [2026-10-27 全量补验](2026-10-27-full-keyed-provider-validation.md)。本页以下数字为历史快照。
+
 **后续更新：**本页保留初轮交集试算的历史证据。用户随后确认 P 使用 60/30/10 固定权重累加并集，并取消连续七天齐全的门槛；当前报告已更新为 56 个独立模型、241 条 P 记录，见[并集规则与短窗口统计](2026-10-26-popularity-weighted-union.md)。初轮原报告留在本地忽略目录 `.modelspage/full-validation/report-before-weighted-union/`；下文的初轮 hash、19 条和验证统计均对应该历史输入与方法。
 
 本轮遍历全部 39 个内置 Provider，按固定 CogineWork 源码尝试真实模型目录刷新，并将每个模型放入 C/P/N 诊断顺序。**范围遍历完成；全员认证刷新和上线准备尚未完成。** 生产 C 的 AA adapter、公共 canonical 得分投影和多来源 P 仍未接入；诊断输出不是可发布 bundle。
