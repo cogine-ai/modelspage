@@ -73,15 +73,16 @@ export function project<T extends AvailableModel>(available: readonly T[], bundl
   });
   const dateKey = (model: ProjectedModel) => { const date = trustedRelease(model.public_facts.release, now); return date ? -Date.parse(date) : Number.POSITIVE_INFINITY; };
   const tieKey = (model: ProjectedModel): (number | string)[] => [dateKey(model), providerRank.get(model.identity.provider) ?? Number.MAX_SAFE_INTEGER, identityKey(model.identity)];
-  const capabilityKey = (model: ProjectedModel): (number | string)[] => {
+  const capabilityMetricKey = (model: ProjectedModel): (number | string)[] => {
     const fact = model.public_facts.capability;
     const usable = !!profile && fact.state === "known" && fact.value.profile_id === profile.id && fact.source_id === profile.source_id && fact.value.model_snapshot === profile.model_snapshot && fact.value.inference_config === profile.inference_config && sourceById.get(fact.source_id)?.usage.redistribution === "allowed";
-    return [usable ? 0 : 1, usable && fact.state === "known" ? fact.value.score * (profile!.direction === "higher" ? -1 : 1) : 0, ...tieKey(model)];
+    return [usable ? 0 : 1, usable && fact.state === "known" ? fact.value.score * (profile!.direction === "higher" ? -1 : 1) : 0];
   };
+  const capabilityKey = (model: ProjectedModel): (number | string)[] => [...capabilityMetricKey(model), ...tieKey(model)];
   const popularityKey = (model: ProjectedModel): (number | string)[] => {
     const fact = model.public_facts.popularity;
     const usable = !!options.popularity_source_id && fact.state === "known" && fact.value.ranking_eligible && fact.value.source_id === options.popularity_source_id && fact.source_id === options.popularity_source_id && sourceById.get(fact.source_id)?.usage.redistribution === "allowed";
-    return [usable ? 0 : 1, usable && fact.state === "known" ? fact.value.position : 0, ...tieKey(model)];
+    return [usable ? 0 : 1, usable && fact.state === "known" ? fact.value.position : 0, ...capabilityMetricKey(model), ...tieKey(model)];
   };
   const sortBy = (key: (model: ProjectedModel<T>) => (number | string)[]) => models.map(model => ({ model, key: key(model) })).sort((a, b) => compareTuple(a.key, b.key)).map(x => x.model);
   const capability = sortBy(capabilityKey);
@@ -93,7 +94,7 @@ export function project<T extends AvailableModel>(available: readonly T[], bundl
     capability, popularity, newest,
     explanations: {
       capability: capabilityEvidence ? `能力优先；profile=${profile!.id}；${profile!.name}；${profile!.task}；${profile!.evaluation_conditions}` : "能力证据未知：没有已选且合法、可比较的 profile 证据。使用可信日期、Provider 展示次序、精确身份兜底；兜底不是能力结论。",
-      popularity: popularityEvidence ? `热度优先；source=${options.popularity_source_id}；仅该来源快照的明确映射顺序；不是全市场用户数。` : "热度证据未知：没有可用的同源、逐项覆盖明确的热度顺序。使用可信日期、Provider 展示次序、精确身份兜底；未上榜不等于零。",
+      popularity: popularityEvidence ? `热度优先；source=${options.popularity_source_id}；热度平局或未知项依次按可比较能力、可信日期及既定稳定次序兜底；不是全市场用户数。` : "热度证据未知：依次按可比较能力、可信日期及既定稳定次序兜底；兜底不产生热度事实，未上榜不等于零。",
       newest: "按来源提供的模型发布日期（日精度）降序；models.dev 日期沿用上游维护结果。未知、未来及非日精度日期置后，再按 Provider 展示次序、原目录位置、精确身份。",
     },
   };

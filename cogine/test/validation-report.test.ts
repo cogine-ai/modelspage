@@ -134,4 +134,12 @@ describe("all-provider diagnostic report", () => {
     for (const a of rows) for (const b of rows) for (const c of rows) if (compareReportRows(a, b, "c_score", now) < 0 && compareReportRows(b, c, "c_score", now) < 0) expect(compareReportRows(a, c, "c_score", now)).toBeLessThan(0);
     expect([...rows].sort((a, b) => compareReportRows(a, b, "c_score", now))[0]!.request_model_id).toBe("m5");
   });
+  test("P keeps known zero above unknown and uses C then N as a transitive fallback", () => {
+    const make = (id: string, p: number | null, c: number | null, date: string) => ({ request_model_id: id, p_trial_score: p, c_score: c, n_date: date, n_precision: "day", provider_order: 0, source_position: 0 });
+    const rows = [make("popular", 9, 1, "2020-01-01"), make("zero-p", 0, null, "2020-01-01"), make("strong-c", null, 90, "2020-01-01"), make("new-c", null, 5, "2026-10-25"), make("anonymous", null, null, "2026-10-25")];
+    const compare = (a: typeof rows[number], b: typeof rows[number]) => compareReportRows(a, b, "p_trial_score", now);
+    expect([...rows].reverse().sort(compare).map(row => row.request_model_id)).toEqual(rows.map(row => row.request_model_id));
+    for (const a of rows) for (const b of rows) for (const c of rows) if (compare(a, b) < 0 && compare(b, c) < 0) expect(compare(a, c)).toBeLessThan(0);
+    expect(rows[2]!.p_trial_score).toBeNull();
+  });
 });

@@ -74,6 +74,42 @@ describe("C/P/N total local indexes", () => {
     expect(facts[0]!.popularity).toMatchObject({ value: { position: 1, ranking_eligible: false } });
     expect(facts[2]!.popularity.state).toBe("unknown");
   });
+  test("P ties and unknowns fall back through comparable C then N without inventing P", () => {
+    const facts = [
+      model("p-first", { popularity: popularity(1), capability: capability(0) }),
+      model("p-tie-strong", { popularity: popularity(2), capability: capability(30), release: release("2020-01-01") }),
+      model("p-tie-new", { popularity: popularity(2), capability: capability(10), release: release("2026-10-24") }),
+      model("c-strong", { capability: capability(90), release: release("2020-01-01") }),
+      model("c-new", { capability: capability(10), release: release("2026-10-24") }),
+      model("c-zero", { capability: capability(0), release: release("2020-01-01") }),
+      model("n-new", { release: release("2026-10-24") }),
+      model("anonymous", { release: release("2025-10-17") }),
+      model("month-only", { release: release("2026-10", { precision: "month" }) }),
+      model("no-data", { release: unknown("No date") }),
+    ];
+    const input = bundle({ facts });
+    const original = structuredClone(facts);
+    const result = project(available(facts), input, options);
+    expect(ids(result.popularity)).toEqual(facts.map(fact => fact.identity.request_model_id));
+    expect(ids(project([...available(facts)].reverse(), input, options).popularity)).toEqual(ids(result.popularity));
+    expect(ids(filterIndex(result.popularity, { query: "c-" }))).toEqual(["c-strong", "c-new", "c-zero"]);
+    expect(facts).toEqual(original);
+    expect(result.popularity.find(model => model.identity.request_model_id === "c-strong")!.public_facts.popularity.state).toBe("unknown");
+    expect(result.explanations.popularity).toContain("可比较能力");
+  });
+  test("P fallback honors the selected C profile, configuration and direction", () => {
+    const facts = [
+      model("valid-zero", { capability: capability(0), release: release("2020-01-01") }),
+      model("valid-ten", { capability: capability(10), release: release("2020-01-01") }),
+      model("other-profile", { capability: capability(999, "other"), release: release("2026-10-23") }),
+      model("other-config", { capability: capability(999, "fixture-profile", "reasoning=high"), release: release("2026-10-24") }),
+    ];
+    const input = bundle({ facts });
+    expect(ids(project(available(facts), input, options).popularity)).toEqual(["valid-ten", "valid-zero", "other-config", "other-profile"]);
+    input.metric_profiles[0]!.direction = "lower";
+    expect(ids(project(available(facts), input, options).popularity)).toEqual(["valid-zero", "valid-ten", "other-config", "other-profile"]);
+    expect(ids(project(available(facts), input, { ...options, profile_id: undefined }).popularity).slice(0, 2)).toEqual(["other-config", "other-profile"]);
+  });
   test("ties are deterministic; fallback explains no evidence and filtering preserves total order", () => {
     const facts = [model("z:free"), model("a"), model("b:free")];
     const output = project(available(facts), bundle({ facts }), options);
