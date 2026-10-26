@@ -47,6 +47,38 @@
 
 覆盖快照已保存到 [`generated/coverage.md`](generated/coverage.md)、[`coverage.json`](generated/coverage.json)、[`sources.json`](generated/sources.json)。完整 inventory 用于覆盖统计，客户端对象是稀疏事实集合；不把 230 个公共 Provider 当作账户资格。`production_ready=false` 表示外部生产配置与上线验证尚未完成；`facts_publishable` 只描述数据用途检查。
 
+## PR #1 Review 与远端 CI 跟进（2026-10-26）
+
+本次修复代码提交：`8bc70f3dbcd94492e30d45d5b488489aacdf6dcc`。PR 保持未合并；后续验收文档提交不改运行代码。
+
+### 排队根因与授权范围
+
+旧运行 `40220870089` 长期显示 queued，但 jobs 为0。已通过 GitHub 设置页确认：组织的 Actions 策略为 Selected repositories，已选36个仓库，Modelspage 未在列表中；仓库页面显示被组织管理员禁用。这个状态没有进入 job 执行，不能解释为测试失败或 runner 容量不足。
+
+用户明确授权仅为 Modelspage 启用 Actions 后，于 **2026-10-26 18:07:52（Asia/Singapore）** 将它加入允许列表，36→37；刷新后确认保存成功。其他仓库、action 来源策略、runner 设置、令牌默认权限、自动创建 PR 权限与生产发布开关均未更改。
+
+### Findings 与验证
+
+已逐条核实并处理8条 inline findings（其中历史热度问题被两个 reviewer 重复报告）及2项补充建议：
+
+| 问题 | 修复与回归证据 |
+| --- | --- |
+| 回滚丢失 replace 纠错 | 发布器与消费者共用纠错连续性检查；replace、withdraw、conflict 的有效修订都必须保留或被更高审核修订取代；禁止重写旧纠错 ID |
+| 历史 P 位置混入新完整快照 | 缺席或作用域不适用的历史位置变为 unknown；模型成员仍保留；重新应用纠错后再校验快照与当前资格，失效证据要求明确新纠错 |
+| 冻结的来源许可盖过当前配置 | 当前经过校验的配置覆盖快照和旧 catalog 中的 usage；撤销再分发权限会阻止发布，署名及逐项排序资格也使用当前配置 |
+| 无关响应变化制造数据 PR | 按解析后的 ID、顺序和资格判断变化；相同公开数据保留原 hash、时间及持久快照 |
+| 不匹配的日期审核仍提供证据 | 仅日期和精度均匹配才应用审核证据和两个可信标记；不匹配降级为上游未审核事实 |
+| 合并后 Bun preload 可进入写权限 job | 改用 jq 读取并校验 commit；合并后不再启动 Bun；新增 workflow 回归检查 |
+| workflow 顶层默认写权限 | 默认 contents:read，写权限仅声明在 propose job |
+| 保护路径检查仅存在于测试 | 实际暂存 merge diff 经过保护路径漂移检查；真实 Git 暂存区与含换行文件名回归覆盖 |
+| 正例 fixture 未绑定原始字节 | 校验 manifest/catalog 实际 hash 与大小；损坏字节和错误 hash 均拒绝 |
+
+远端 [PR CI 运行 40305084296](https://github.com/cogine-ai/modelspage/actions/runs/40305084296) 在上述代码提交上 **SUCCESS**，于 **2026-10-26 18:09:05（Asia/Singapore）** 完成。日志实际记录 **75 pass、0 fail、416 assertions**，并通过冻结安装、类型检查、Schema 检查、fixture 构建、完整性校验、无凭据发布模拟和 artifact 上传。本地同一套检查也通过；四份 workflow 通过 actionlint 1.7.12（环境未安装可选 ShellCheck）。
+
+真实固定上游构建再次通过，revision 仍为 `eb35bf41fb43a43bfb3f256aa84c90591dba9bd61708a5770ff379a139359fff`，覆盖和生产限制没有改变。fixture revision 仍为 `554d027ab6af6b27d763e63ee660a423904d4afbaac41d563a34875f8bd20255`；重复 dry-run 分别返回 published、unchanged。原来的 queued 运行不作为通过证据；被 concurrency 取消的重复运行也不计入失败或 PASS。
+
+Actions 的自动创建 PR 权限仍由组织关闭。它不影响本次只读 PR CI；将来启用每日上游/数据 PR 时需另行授权配置，不能通过提高 token 声明来绕过组织策略。真实 R2 认证、CDN、生产发布与模型推理均未执行。
+
 ## 上游额外测试的失败与限制
 
 额外运行了 `bun run test:upstream`。未修改的继承测试存在断言失败和默认5秒超时；全量运行已中止，**不报告为通过**。单独复现 `bun test packages/core/test/github-copilot.test.ts --timeout 30000` 为 22 pass、1 fail：`a price update keeps the mid-conversation flags copied from Anthropic`，位置 `packages/core/test/github-copilot.test.ts:308`。该测试涉及未使用的上游 Copilot 采集模块，本次没有改写上游核心来掩盖失败。
