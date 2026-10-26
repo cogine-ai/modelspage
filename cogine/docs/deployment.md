@@ -6,6 +6,14 @@
 
 审核 PR 合并到 main 后，workflow 通过只读 GitHub API 核实 exact merge commit 及当前 main SHA，再执行已启用的 production 发布；保留手动重试。它从已验证的当前 manifest 自动派生下一发布序号，以可信提交时间形成固定构建时钟，无需每次人工填序号和时钟。开关关闭时不会写入生产；已有有效版本后的纠错和撤回仍可发布。
 
+## DNS 交付安排
+
+DNS 由用户在现有 DNS 平台手动配置，统一留到部署准备的最后一步交付，不分批要求用户修改。先完成可独立推进的应用、数据和云端配置，再提供一张完整记录表：域名、DNS 管理平台、记录类型、主机名、实际目标值、TTL、代理状态和验证方式。记录值必须来自平台实际分配和确认，未取得的值明确标为待生成，不把示例或 r2.dev 地址当正式目标。
+
+候选入口为 `models.cogine.ai`（Spaceship）、`models.cogine.app`（Vercel）及 `models.cogineai.com`（当前 NS 查询为 DNSPod）。建议一个正式数据源，其他入口共用该版本或重定向。最终清单需覆盖实际选用的入口及所有权/证书验证记录；如接入方式涉及 nameserver 变更，应单独列出其范围，不能混作普通 CNAME。用户完成 DNS 后再执行公开路径、证书及缓存验收，在此之前这些检查保持未执行状态。
+
+当前 R2 自定义域名要求 zone 位于桶所在 Cloudflare 账户；保留外部权威 DNS 的 partial setup 需要 Business 或 Enterprise，接入方式尚未落实。不能假定在三个现有 DNS 平台分别添加一条 CNAME 就已满足该要求。参见 [R2 自定义域名](https://developers.cloudflare.com/r2/buckets/public-buckets/#add-your-domain-to-cloudflare) 和 [partial setup](https://developers.cloudflare.com/dns/zone-setups/partial-setup/)。本轮没有迁移 DNS、开通付费计划或发布生产数据。
+
 ## 本地模拟
 
 ```sh
