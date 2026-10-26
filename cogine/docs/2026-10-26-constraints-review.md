@@ -48,6 +48,8 @@
 
 本地 Wrangler 4.141.0 已认证到账户 `a11312197b2f8ff3e535b8c2f4ac9b22`，创建并读回确认专用 `modelspage-production` 桶（Standard/APAC）。没有复用 CogineWork 资产桶。自定义域名为空，r2.dev 访问关闭，未上传公共目录或 manifest；当前登录的 zones 查询为空，已询问正式域名及管理位置。专桶 S3 Secret、域名/缓存与线上条件写仍未验收。
 
+用户提供了 `models.cogine.app`、`models.cogineai.com`、`models.cogine.ai` 三个候选。2026-10-26 实时 NS 查询分别得到 Vercel、DNSPod、Spaceship；`cogineai.com` 当前的 DNSPod 结果与“Cloudflare 管理”的描述不同，两个候选主域的 Cloudflare zone API 查询也为空，不能直接假定可绑定。建议品牌主地址采用 `models.cogine.ai`，其他地址后续可作为同一份数据的入口，不维护三套独立发布。R2 自定义域名所需的同账户 zone 接入方式尚未落实；未迁移任何现有 DNS。
+
 仓库实现了合并 PR 后自动发布、可信 main SHA 判定、自动派生序号/固定时钟，并保持生产开关关闭。非空 C/P/N 检查只是最低条件，不表示广泛覆盖达标。新增检查中“采集许可当发布资格”的耦合已去掉：停止采集不自动撤销已有合法数据的再分发权。首次检查复用有效事实、线性遍历，避免逐项重新克隆整个包。
 
 ## 验证证据
@@ -65,5 +67,7 @@
 | 真实候选的首发检查 | 按预期拒绝，仍缺 capability、popularity |
 | Cloudflare CLI 认证、专桶创建及读回 | 已执行；桶为空，未启用公开访问 |
 | 自定义域名、S3 凭据、真实发布/回退、模型推理 | 未执行；域名和 C/P 来源仍待落实 |
+
+补充专项验证：发布资格检查遇到 GitHub API 失败时应让 job 失败并可重试，不能静默 publish=false；修复后 workflow 专项 3 pass、44 assertions。初次远端 CI 暴露浅克隆缺少固定上游 commit 的问题，已在只读 CI 显式抓取该锁定 SHA，未扩大为全历史下载；后续远端状态以 PR #2 最新 SHA 为准。
 
 历史 `acceptance.md` 的三条 N/PR 未合并记录不再描述当前状态。
