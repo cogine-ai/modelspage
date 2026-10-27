@@ -144,6 +144,8 @@ P 1/2/3/7 日去重模型为 44/48/48/54。七日从上轮 56 变为 54，来自
 
 过程修正还包括：同 method 不同窗口/权重及 native/weighted 量纲不能混排；历史 P 可保留但超出当前 cohort 不再 eligible，旧 eligible 纠错需要更高修订；component 权限撤销压过旧 composite；catalog 成功不能冒充 ranking 成功；显式 disabled 停止请求；当前 usage 在持久化比较前应用，避免未变数据每天伪造新鲜时间；加密内容本身也做严格来源快照/目录校验。
 
-本地证据位于忽略目录：`.modelspage/daily-integration-receipt.json`、`daily-cohort-verification.json`、`full-validation/verification.json`、`full-validation/runs/20261027T012325Z/receipt.json`、`daily-tests-final.log`。完整 HTML/CSV/JSON 是 `dist/full-validation/`。认证原始数据及明文候选没有提交公共仓库；公开 PR 只含代码、合成 fixture、加密输入和无分数审核元数据。
+本地证据位于忽略目录：`.modelspage/daily-integration-receipt.json`、`.modelspage/daily-cohort-verification.json`、`.modelspage/daily-real-repro-verification.json`、`dist/full-validation/verification.json`、`.modelspage/full-validation/runs/20261027T012325Z/receipt.json`、`.modelspage/daily-tests-final.log`。完整 HTML/CSV/JSON 是 `dist/full-validation/`。认证原始数据及明文候选没有提交公共仓库；公开 PR 只含代码、合成 fixture、加密输入和无分数审核元数据。
+
+实现提交 `1f2bf674824ffae08d3ff43ab18458b02b8857aa` 的 [GitHub PR CI](https://github.com/cogine-ai/modelspage/actions/runs/40436243803) 已通过：179 项测试、1,133 个断言、typecheck、schema 一致性、fixture 构建与校验、发布 dry-run 均成功。同伴对该提交的每日权限／输入绑定链路作最终只读复核，没有新增阻断问题；这仍不替代合并后真实调度与生产验收。
 
 三个 repository secret 的名称已通过 GitHub API 读回确认；不读回或输出值。当前工作在 draft PR #2，尚未合并。新的定时 workflow 及自动提案尚未在远端执行，必须待代码合并默认分支后生效。production 开关、DNS/证书/公开读取与外网发布均未执行。
