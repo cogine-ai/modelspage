@@ -7,7 +7,7 @@ name = "Llama 4 Scout"
 description = "Open multimodal Llama model for long-context analysis and efficient agents"
 
 [capabilities]
-tools = { supported = true }
+tools = { supported = true, choice = ["auto", "none", "required", "tool"] }
 reasoning = { supported = false }
 structured_output = true
 
