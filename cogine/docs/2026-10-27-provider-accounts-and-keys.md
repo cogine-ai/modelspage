@@ -54,28 +54,20 @@
 | `mimo-tokenplan` | Xiaomi MiMo Token Plan | [注册 / 控制台](https://platform.xiaomimimo.com/token-plan) | 当前适配器按固定目录/资料验证 | [官方1](https://mimo.mi.com/docs/en-US/quick-start/faq/api-integration) · [官方2](https://mimo.mi.com/docs/en-US/tokenplan/Token%20Plan/subscription) |
 | `agnes` | Agnes AI | [注册 / 控制台](https://platform.agnes-ai.com/) | 当前适配器按固定目录/资料验证 | [官方1](https://wiki.agnes-ai.com/en/docs/quickstart) · [官方2](https://agnes-ai.com/en/docs/overview) |
 
-## 当前还需要哪些 Key
+## 当前验证状态与仍缺专用 Key
 
-已有专用变量：AA、OpenRouter、Ollama Cloud、CogineLLM。后两项已分别完成携 Key 的目录请求；这些观察不等于推理资格或全部账号目录验收。ModelScope、Zen/Go、Kilo、TokenDance 的公开目录已取得，暂不必为了本轮目录验证额外提供 Key。
+全量 39 项已逐一记录结果：**18 个目录刷新成功**，其中 13 个请求携带对应专用 Key、5 个为匿名公开目录。成功请求不等于推理资格或全部账号目录验收。ModelScope、Zen/Go、Kilo、TokenDance 的公开目录已取得，暂不必为了本轮目录验证额外提供 Key。完整证据见[全量携 Key 验证报告](2026-10-27-full-keyed-provider-validation.md)，当前 C/P/N 覆盖与每日流程见[每日集成及完整覆盖](2026-10-27-daily-cpn-integration.md)。
 
-下一批尚未成功刷新的是 13 个 Provider，OpenAI 两个协议入口可共用，因此最少还需 **12 份 Key**。填写仓库根目录未提交的 `.env.validation` 即可；允许分批。
+当前缺少专用 Key 的仅有下列 **2 个 Provider**，本轮匿名目录请求均为 HTTP 401；此前“还需 12 份 Key”的结论已过时。需要补验时，填写仓库根目录未提交的 `.env.validation` 即可。
 
 | Provider | 变量名 | 注册 / Key |
 | --- | --- | --- |
-| DashScope | `MODELSPAGE_VALIDATE_DASHSCOPE_API_KEY` | [打开官方入口](https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key) |
-| OpenAI | `MODELSPAGE_VALIDATE_OPENAI_API_KEY` | [打开官方入口](https://platform.openai.com/api-keys) |
 | Anthropic | `MODELSPAGE_VALIDATE_ANTHROPIC_API_KEY` | [打开官方入口](https://platform.claude.com/settings/keys) |
-| Google Gemini | `MODELSPAGE_VALIDATE_GEMINI_API_KEY` | [打开官方入口](https://aistudio.google.com/api-keys) |
-| DeepSeek | `MODELSPAGE_VALIDATE_DEEPSEEK_API_KEY` | [打开官方入口](https://platform.deepseek.com/api_keys) |
-| Kimi (China) | `MODELSPAGE_VALIDATE_KIMI_CN_API_KEY` | [打开官方入口](https://platform.kimi.com/console) |
-| Kimi (International) | `MODELSPAGE_VALIDATE_KIMI_INTL_API_KEY` | [打开官方入口](https://platform.kimi.ai/) |
-| Zhipu (BigModel) | `MODELSPAGE_VALIDATE_ZHIPU_CN_API_KEY` | [打开官方入口](https://bigmodel.cn/usercenter/proj-mgmt/apikeys) |
-| Zhipu (Z.AI) | `MODELSPAGE_VALIDATE_ZHIPU_INTL_API_KEY` | [打开官方入口](https://z.ai/manage-apikey/apikey-list) |
-| SiliconFlow (China) | `MODELSPAGE_VALIDATE_SILICONFLOW_CN_API_KEY` | [打开官方入口](https://cloud.siliconflow.cn/account/ak) |
 | SiliconFlow (International) | `MODELSPAGE_VALIDATE_SILICONFLOW_INTL_API_KEY` | [打开官方入口](https://cloud.siliconflow.com/account/ak) |
-| Volcano Engine | `MODELSPAGE_VALIDATE_VOLCENGINE_CN_API_KEY` | [打开官方入口](https://ark.volcengine.com/region:cn-beijing/apikey) |
 
-`openai-response` 可复用 `MODELSPAGE_VALIDATE_OPENAI_API_KEY`；其专用变量也可以单独填写。地区和套餐 Key 不自动跨入口复用。Kimi 当前平台域名为 `platform.kimi.com` / `platform.kimi.ai`，API 仍保留 `moonshot.cn` / `moonshot.ai`，账号、余额和 Key 按官方说明区分。
+**Kimi International 已有专用 Key，不属于缺 Key。** 相同官方目录 URL 的 curl 请求与一次 Bun `fetch` 对照均在 HTTP 前断连（TLS／连接错误），未取得可评估认证的响应；不能据此认定 Key 无效或目录为空。其余未执行项是 14 个源码不支持通用远端目录、3 个本地入口和 1 个订阅 OAuth 入口，不能靠补通用 API Key 解决。
+
+`openai` 与 `openai-response` 本轮均已成功，后者使用独立专用变量；runner 仅在其专用变量为空时允许复用 `MODELSPAGE_VALIDATE_OPENAI_API_KEY`。地区和套餐 Key 不自动跨入口复用。Kimi 当前平台域名为 `platform.kimi.com` / `platform.kimi.ai`，API 仍保留 `moonshot.cn` / `moonshot.ai`，账号、余额和 Key 按官方说明区分。AA 是另行验证的排名来源，不计入上述 18 个 Provider 目录。
 
 Agnes、各 Coding/Token Plan 及 MiniMax 等当前目录策略是 `catalog_only`，不代表本项目已证明厂商永远没有模型接口。它们的账号入口列在上表，当前先按公开资料核对，不收集用不上的凭据。Azure 是资源/部署目录，Codex 是订阅 OAuth，本地三个入口是本机服务，这些不以公共 Provider API Key 代替验收。
 
@@ -93,7 +85,9 @@ Agnes、各 Coding/Token Plan 及 MiniMax 等当前目录策略是 `catalog_only
 
 - [GitHub 官方文档](https://docs.github.com/en/github-models) 明确 GitHub Models 已于 2026-07-30 全面退役；CW 中对应条目也是 retired，不应继续引导新建 PAT 开通。
 
-## 本次新增 CogineLLM 目录证据
+## 历史：00:19／00:47 的 CogineLLM 目录证据
+
+以下保留当时的请求、计数和测试证据，**不是当前全量结果**；后续已完成上文链接的 18 个目录成功及完整 C/P/N 重算。
 
 台北 2026-10-27 00:19:42–49，仅对 `https://llm.cogine.ai/v1/models` 发起 GET：此前匿名 401，本次携专用 Key 为 200，返回 16 个精确 ID。来源有 `created` 而无 `release_date`，没有把 created 当作 N；也没有凭 ID 相似性为该网关猜测跨路由 C/P/N。
 
@@ -101,10 +95,10 @@ Agnes、各 Coding/Token Plan 及 MiniMax 等当前目录策略是 `catalog_only
 
 来源依据：`provider_catalog.py:241`、`coginellm_provider.py:136`、`provider_manager.py:3800`、`provider.py:721`，均对照固定 CW HEAD。原生 seed 使用随包元数据，不伪装成新抓取资料；本次列表确实含该 ID，因此仅标明实时成员已确认。
 
-00:19 这次真实目录刷新成功 8 个 Provider、1,177 个来源 ID、1,115 个远端发现投影；完整诊断 1,416 条记录，其中客户端上下文 1,307、来源补录 109。C 515 /P 241 /日精度 N 1,097 不变。目录响应/hash、历史及最后有效输入保留在忽略目录；没有模型推理、注册登录、购买或生产发布。
+历史 00:19 这次真实目录刷新成功 8 个 Provider、1,177 个来源 ID、1,115 个远端发现投影；完整诊断 1,416 条记录，其中客户端上下文 1,307、来源补录 109。C 515 /P 241 /日精度 N 1,097 不变。目录响应/hash、历史及最后有效输入保留在忽略目录；没有模型推理、注册登录、购买或生产发布。
 
 用户随后告知 CogineLLM 已扩容，台北 **10/27 00:47:42–49** 重新 GET 同一目录：HTTP 200，**128 个来源 ID、127 个远端发现 +1 个原生 `cogine/free` =128 个完整客户端上下文**。相对 00:19 新增 112 个精确 ID、移除 0；新旧 raw hash 不同且分别核对原始字节，历史和 last-good 均保留。该结论限定于本次专用 token 返回的目录，未做推理资格验收。
 
-最新总计为 8 个刷新成功 Provider、1,289 个来源 ID、1,227 个远端发现；完整诊断 **1,528 条**，客户端上下文 1,419、来源补录 109。C/P/N 已知计数不变，新模型的身份关联缺口继续明确记录，不把目录 `created` 或名称相似性当成新的排序事实。完整精确差异留在本地 `.modelspage/full-validation/refresh/coginellm-recheck-diff.json`，没有提交认证原始目录。
+历史 00:47 当轮总计为 8 个刷新成功 Provider、1,289 个来源 ID、1,227 个远端发现；完整诊断 **1,528 条**，客户端上下文 1,419、来源补录 109。当时 C/P/N 已知计数不变，新模型的身份关联缺口继续明确记录，不把目录 `created` 或名称相似性当成新的排序事实。完整精确差异留在本地 `.modelspage/full-validation/refresh/coginellm-recheck-diff.json`，没有提交认证原始目录。
 
-完整入口逐项证据在本地 `.modelspage/full-validation/provider-links-{asia,global}.json`；注册入口公开资料不含密钥。CW 源码未修改。新增原生模型保留回归后，固定 Bun 1.4.4 完整套件为 118 pass、0 fail、679 assertions；类型检查和 schema 一致性通过。
+完整入口逐项证据在本地 `.modelspage/full-validation/provider-links-{asia,global}.json`；注册入口公开资料不含密钥。CW 源码未修改。当时新增原生模型保留回归后，固定 Bun 1.4.4 完整套件为 118 pass、0 fail、679 assertions；类型检查和 schema 一致性通过。后续验证结果以[每日集成报告](2026-10-27-daily-cpn-integration.md)为准。

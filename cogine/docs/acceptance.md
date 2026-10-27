@@ -79,7 +79,7 @@
 
 真实固定上游构建再次通过，revision 仍为 `eb35bf41fb43a43bfb3f256aa84c90591dba9bd61708a5770ff379a139359fff`，覆盖和生产限制没有改变。fixture revision 仍为 `554d027ab6af6b27d763e63ee660a423904d4afbaac41d563a34875f8bd20255`；重复 dry-run 分别返回 published、unchanged。原来的 queued 运行不作为通过证据；被 concurrency 取消的重复运行也不计入失败或 PASS。
 
-Actions 的自动创建 PR 权限仍由组织关闭。它不影响本次只读 PR CI；将来启用每日上游/数据 PR 时需另行授权配置，不能通过提高 token 声明来绕过组织策略。真实 R2 认证、CDN、生产发布与模型推理均未执行。
+当时 Actions 的自动创建 PR 权限由组织关闭，不影响上述只读 PR CI。2026-10-27 用户已在组织与仓库设置中勾选并保存自动创建 PR 权限，两个 `/actions/permissions/workflow` 接口均读回 `can_approve_pull_request_reviews=true`；默认 token 权限仍为 read，无需提高默认权限。该阻塞已经解除；真实自动提案流程另行验收，不能用权限配置成功代替运行成功。真实 R2 认证、CDN、生产发布与模型推理均未执行。
 
 ## 上游额外测试的失败与限制
 
