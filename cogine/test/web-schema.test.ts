@@ -63,8 +63,8 @@ test("public contract preserves ratios, fixed weights, exact source facts, zero 
   expect(alpha.p).toBe(4.2);
   expect(alpha.popularity).toEqual(input.facts[0]!.popularity);
   expect(alpha.popularity.state === "known" && alpha.popularity.value.weighted!.weights).toEqual(weights);
-  expect(result.models[2]).toMatchObject({ c: 0, p: null });
-  expect(result.models[3]).toMatchObject({ c: null, p: null, n: null });
+  expect(result.models.find(row => row.id === "lab/zero")).toMatchObject({ c: 0, p: null });
+  expect(result.models.find(row => row.id === "lab/unknown")).toMatchObject({ c: null, p: null, n: null });
   expect(result.models.filter(row => row.c !== null)).toHaveLength(3);
   expect(result.models.filter(row => row.p !== null)).toHaveLength(2);
   expect(result.models.filter(row => row.n !== null)).toHaveLength(3);
@@ -77,7 +77,7 @@ test("public web validation rejects malformed facts, invented zeroes and incompl
   const result = buildRankingDataset(publicInput(), models, providers, options);
   expect(() => validateWebRankingDataset({ ...result, unknown_field: true })).toThrow();
   const zeroed = structuredClone(result);
-  zeroed.models[3]!.c = 0;
+  zeroed.models.find(row => row.id === "lab/unknown")!.c = 0;
   expect(() => validateWebRankingDataset(zeroed)).toThrow("C must preserve");
   const malformed = structuredClone(result) as any;
   delete malformed.models[0].capability.evidence;
@@ -114,4 +114,11 @@ test("code-only public deployments retain data revision/time; real fact changes 
   const changed = buildRankingDataset(changedInput, models, providers, options);
   expect(selectPublishedDataset(changed, previous)).toBe(changed);
   expect(previous.models[0]!.c).toBe(60);
+});
+
+test("public ranking data and ties are independent of upstream file enumeration order", () => {
+  const input = publicInput();
+  const first = buildRankingDataset(input, models, providers, options);
+  const reordered = buildRankingDataset(input, Object.fromEntries(Object.entries(models).reverse()), Object.fromEntries(Object.entries(providers).reverse()), options);
+  expect(stableStringify(reordered)).toBe(stableStringify(first));
 });

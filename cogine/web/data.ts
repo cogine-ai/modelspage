@@ -126,7 +126,7 @@ export function buildRankingDataset(bundle: Bundle, models: Record<string, Catal
   const effective = new Map(projected.capability.map(member => [identityKey(member.identity), member.public_facts]));
   const cUsable = (fact: Fact<Capability>) => !!profile && fact.state === "known" && fact.source_id === profile.source_id && fact.value.profile_id === profile.id && (profile.comparison_policy === "source-headline-v1" || fact.value.model_snapshot === profile.model_snapshot && fact.value.inference_config === profile.inference_config);
   const pUsable = (fact: Fact<Popularity>) => !!popularitySource && fact.state === "known" && fact.source_id === popularitySource.id && fact.value.source_id === popularitySource.id && fact.value.ranking_eligible && popularityCohortMatches(fact.value, popularitySource);
-  const rows = Object.entries(models).map(([id, metadata]): WebRankingModel => {
+  const rows = Object.entries(models).sort(([a], [b]) => compare(a, b)).map(([id, metadata]): WebRankingModel => {
     const entries = hosted.get(id) ?? [];
     const members = [...(byCanonical.get(id) ?? [])].sort((a, b) => compare(identityKey(a.identity), identityKey(b.identity)));
     const capability = consensus(members.map(member => ({ identity: member.identity, fact: effective.get(identityKey(member.identity))!.capability })), cUsable);

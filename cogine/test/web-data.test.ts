@@ -90,10 +90,10 @@ test("canonical N trusts models.dev precision, ignores legitimate Provider date 
   models["lab/invalid"]!.release_date = "2026-02-30";
   const data = input([canonical("day", { release: release("2020-01-01") })]);
   const result = buildRankingDataset(data, models, providers(["day", "month", "future", "invalid"]), options);
-  expect(result.models[0]).toMatchObject({ n: "2026-10-01", release: { state: "known", source_id: "models-dev" } });
-  expect(result.models[1]).toMatchObject({ n: null, release: { state: "known", value: { date: "2026-10", precision: "month" } } });
-  expect(result.models[2]).toMatchObject({ n: null, release: { state: "known", value: { date: "2027-01-01", precision: "day" } } });
-  expect(result.models[3]).toMatchObject({ n: null, release: { state: "unknown" } });
+  expect(result.models.find(row => row.id === "lab/day")).toMatchObject({ n: "2026-10-01", release: { state: "known", source_id: "models-dev" } });
+  expect(result.models.find(row => row.id === "lab/month")).toMatchObject({ n: null, release: { state: "known", value: { date: "2026-10", precision: "month" } } });
+  expect(result.models.find(row => row.id === "lab/future")).toMatchObject({ n: null, release: { state: "known", value: { date: "2027-01-01", precision: "day" } } });
+  expect(result.models.find(row => row.id === "lab/invalid")).toMatchObject({ n: null, release: { state: "unknown" } });
   const revised = buildRankingDataset(data, models, providers(["day"]), { ...options, canonical_release_overrides: { "lab/day": { state: "withdrawn", correction_id: "canonical-date", reason: "Canonical date withdrawn" } } });
   expect(revised.models[0]).toMatchObject({ n: null, release: { state: "withdrawn" } });
 });

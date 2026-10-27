@@ -31,6 +31,16 @@ AA 的通用条款并非一概禁止外部引用：§2.3 允许署名的图表�
 
 首次 CLI 上传在配置校验阶段发现 Pages 不接受 `account_id` 字段，已移除并使用调用时 `CLOUDFLARE_ACCOUNT_ID` 明确账户；该次未部署。Worker compatibility date 固定为 2026-10-01，避免把台北当前日当成平台 UTC 的未来日期。没有迁移任何 nameserver。
 
+## 主分支自动构建验收
+
+PR #4 已合并至 main `0a933ffb13b1d4ca73c299daef6f9eb79b2669ab`，完整 GitHub CI 通过。Cloudflare 收到真实 `github:push` 触发，固定 Bun 1.4.4、frozen lockfile 与加密输入的公开构建成功。
+
+首次 Git 部署 `db44069b-7a53-416d-9ed1-06c6e9475453` 在上传前失败：此前 CLI 上传把云端 output directory 写为相对于 `cogine/web/wrangler.jsonc` 的 `../../packages/web/dist`，Git root 为空时该路径越出仓库。已将云端构建输出修正为根目录下的 `packages/web/dist`，重试 `081620b3-760d-4d76-903c-5f250f31a750` 于 UTC 2026-10-27 18:17:17 成功发布，URL `https://081620b3.modelspage.pages.dev`。后续手动 CLI 上传仍须核对是否改变云端构建路径与变量。
+
+跨 macOS／Linux 回读发现上游目录枚举次序会影响新增 canonical 数据的数组与指标平局排序，已在自有投影入口按精确 canonical ID 固定顺序，原 Models 页面及原解析器不改。回归用例只反转上游对象插入顺序，要求全量输出相同；修复前失败，修复后通过。
+
+独立 GitHub workflow `Publish reviewed Modelspage revision` 仍在原有 `MODELSPAGE_PUBLISH_ENABLED` guard 处拒绝运行；这表示版本化 R2 发布未启用，与本次 Pages 网站部署是两条流程，不把该 workflow 报为通过。
+
 ## DNS 交付
 
 三处 custom domain 已在 Pages 登记，目前为 initializing／verification pending。目标来自平台实际分配，并非示例。
