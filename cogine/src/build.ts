@@ -92,7 +92,9 @@ export async function build(options: BuildOptions): Promise<{ bundle: Bundle; ma
       }
     }
   } else {
-    openrouterSource = previousOpenrouter ? { ...previousOpenrouter, status: "disabled", error: "No persisted local source snapshot; retaining verified last-good input and its provenance" } : { id: "openrouter-weekly", status: "disabled", url: configuration.endpoint, retrieved_at: null, data_as_of: null, window: { start: null, end: null }, usage: configuration.usage, complete: false, error: "No reviewed persisted source snapshot; transient probes are not production inputs" };
+    openrouterSource = previousOpenrouter
+      ? previousOpenrouter.status === "disabled" ? previousOpenrouter : { ...previousOpenrouter, status: "disabled", error: "No persisted local source snapshot; retaining verified last-good input and its provenance" }
+      : { id: "openrouter-weekly", status: "disabled", url: configuration.endpoint, retrieved_at: null, data_as_of: null, window: { start: null, end: null }, usage: configuration.usage, complete: false, error: "No reviewed persisted source snapshot; transient probes are not production inputs" };
     for (const previousFact of previous?.facts ?? []) {
       const current = facts.get(identityKey(previousFact.identity));
       if (current) current.popularity = structuredClone(previousFact.popularity);
