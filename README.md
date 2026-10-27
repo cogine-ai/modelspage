@@ -13,12 +13,12 @@ Modelspage 发布公共模型资料、经过核验的身份关联和 C/P/N 排�
 | P / 多 | 已接入每日 OpenRouter / Vercel / Go-Free 观测，按 60/30/10 固定权重累加并集；逐日缺失保留 null，P → C → N → 稳定次序兜底；公开发布仍受来源授权检查 |
 | C / 好 | AA Intelligence Index 已接入每日采集和构建，使用同版本唯一 source headline，保留实际模型/effort及全部候选；项目所有者已确认 AA/OpenCode 的公开排名和 JSON 授权范围，来源标注继续保留 |
 | 消费端 | 纯匹配/投影及缓存参考实现、正反例和测试；没有修改 CogineWork |
-| 发布 | 网站使用独立 Pages 公网部署；版本化 R2 数据保留原条件发布、回退及合并 PR 触发流程，该数据渠道的开关默认关闭 |
-| 生产环境 | 网站及 `/rankings.json` 已部署至 [modelspage.pages.dev](https://modelspage.pages.dev/)；三个正式子域名等待用户配置 DNS。专用 R2 桶保留，版本化 `/v1/` 数据发布仍单独管理 |
+| 发布 | 网站与版本化 R2 数据均已启用审核 PR 合并后的自动发布；版本化数据按条件写切换 manifest，保留原回退协议 |
+| 生产环境 | [models.cogine.ai](https://models.cogine.ai/) 为正式主站，models.cogine.app／models.cogineai.com 共用同一版本；[排名 JSON](https://models.cogine.ai/rankings.json) 与[版本化 manifest](https://models.cogine.ai/v1/manifest.json) 均已公开验证 |
 
 具体命令与验收证据见 [验收记录](cogine/docs/acceptance.md)，字段和 Provider 覆盖以每次构建生成的报告为准。
 
-Web 直接复用固定的 models.dev 网站源码，保留原 Models、Providers、Labs 及详情、搜索、排序和原 JSON API，另外增加独立 [Rankings](https://modelspage.pages.dev/rankings/) 与 [Data](https://modelspage.pages.dev/data/) 页面。[公网部署与 DNS](cogine/docs/2026-10-28-public-deployment.md)记录了实际验证；[Web 运行方式](cogine/web/README.md)保留本地开发命令。
+Web 直接复用固定的 models.dev 网站源码，保留原 Models、Providers、Labs 及详情、搜索、排序和原 JSON API，另外增加独立 [Rankings](https://models.cogine.ai/rankings/) 与 [Data](https://models.cogine.ai/data/) 页面。[正式发布验收](cogine/docs/2026-10-28-production-release.md)记录了域名、专桶凭据、条件写及合并自动发布的实际验证；[Web 运行方式](cogine/web/README.md)保留本地开发命令。
 
 每日目录/N与C/P现已合并为一个固定输入审核流程，见[每日集成及本轮全盘验证](cogine/docs/2026-10-27-daily-cpn-integration.md)。已提交的 C/P 输入是加密快照，正式 builder 可解密并与模型目录/N构建同一版本；诊断与 builder 共用身份关联、AA headline 和加权计算。不会修改客户端可用成员。
 
@@ -28,7 +28,7 @@ CW 全部 39 个内置条目、官方注册/Key 入口及 DashScope 控制台迁
 
 ## 每日 C/P 输入
 
-统一 workflow 每天 UTC 02:17（台北 10:17）采集排名、准备 models.dev 合并，再用同一候选 tree 构建 C/P/N，只产生一个审核 PR。工作流修改在本 PR 合并到默认分支后生效；未声称已经执行首个定时运行。解析器、依赖或执行配置发生变化时保留明确的人工审核状态，不能在持有解密 key 时执行新上游代码。
+统一 workflow 每天 UTC 02:17（台北 10:17）采集排名、准备 models.dev 合并，再用同一候选 tree 构建 C/P/N，只产生一个审核 PR。真实每日候选 #3 已经审核并合并，随后自动完成网站构建和首轮 R2 发布。解析器、依赖或执行配置发生变化时保留明确的人工审核状态，先审查候选代码，再向可信构建注入输入解密 key。
 
 本项目专用 AA / OpenRouter / 输入解密 key 已配置为 GitHub repository secrets。实际输入 key 在本地 ignored 0600 `.env.daily`，空变量模板见 [`daily.env.example`](cogine/config/daily.env.example)；真实凭据不提交。手动复跑：
 

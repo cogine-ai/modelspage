@@ -2,19 +2,21 @@
 
 直接复用 `packages/web` 的 models.dev 网站。Models、Providers、Labs、三类详情、搜索、表格排序、复制和原 JSON API 保留；独立增加 `/rankings`、`/data` 与 `/rankings.json`。
 
-网站已部署到 **https://modelspage.pages.dev/**。正式子域名的 DNS 配置、平台状态及验证见[公网部署记录](../docs/2026-10-28-public-deployment.md)。
+正式网站为 **https://models.cogine.ai/**，models.cogine.app 与 models.cogineai.com 提供同一版本；原 Pages hostname 保留。三域名的证书、页面/API、CORS 与版本化发布均已验证，见[正式发布验收](../docs/2026-10-28-production-release.md)。
 
 ## 公网构建
 
 Cloudflare Pages 项目为 `modelspage`，Git 来源为 `cogine-ai/modelspage` 的 main。生产构建使用 Bun 1.4.4，先以固定提交时钟从已审核加密输入构建 C/P/N，再生成整套站点、公开 `/rankings.json` 及其 JSON schema。只有公开许可和实际 C/P/N 检查通过后，数据集才标为 `audience: public`；不会将本地候选直接上传。
 
 ```sh
-MODELSPAGE_WEB_ORIGIN=https://modelspage.pages.dev bun --env-file .env.daily run web:release
+MODELSPAGE_WEB_ORIGIN=https://models.cogine.ai bun --env-file .env.daily run web:release
 ```
 
 密钥只在构建进程内解密输入，不进入网站。Cloudflare 保存项目专用的输入解密 secret；网页代码不需要 AA/OpenRouter API key。`MODELSPAGE_WEB_ORIGIN` 使用实际 HTTPS 公网 origin；禁止把 localhost 当作公网构建地址。
 
-自有 `_worker.js` 保留原 API 的 `?type=`、schema 和实验 v2，提供只读跨域和条件请求。静态页面使用 Pages 原生路由与真实 404，不复用原 SST/遥测代码。专桶通过 `PUBLIC_DATA` binding 暴露严格限定的 `/v1/` 读取路径，桶中尚无正式 manifest 时真实返回 404。该版本化渠道与网站 `/rankings.json` 是不同合同，不能把网站部署成功冒充 R2 数据发布。
+自有 `_worker.js` 保留原 API 的单个／重复 `?type=`、schema 和实验 v2，提供只读跨域和条件请求。静态页面使用 Pages 原生路由与真实 404，不复用原 SST/遥测代码。私有专桶通过 `PUBLIC_DATA` binding 提供已发布的 `/v1/manifest.json` 和不可变 revision catalog。该版本化渠道与网站 canonical `/rankings.json` 是不同合同，公开入口均在 Data 页。
+
+正式构建使用 CI 的原生 Linux Git 检出。固定上游同时存在 `Qwen`／`qwen` 目录，macOS 大小写不敏感工作目录会合并两个 Provider ID 前缀；本地预览不替代精确 ID 的 Linux 验收。
 
 ## 本地开发
 
@@ -51,7 +53,7 @@ bun run typecheck:web
 bun run typecheck
 bun test cogine/test
 bun validate
-bun run v1:check 4f1231e6bf72d5fa66dc1163599eaaedb607faab
+bun run v1:check dde15ad9b8c0903ea4e26da44e637c4fd880e9a9
 ```
 
 当前复现证据见 [`2026-10-28-web-reproduction.md`](../docs/2026-10-28-web-reproduction.md)。

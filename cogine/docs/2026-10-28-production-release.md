@@ -28,4 +28,20 @@ Canonical 来源时间改用 `lock.synced_at ?? lock.imported_at`，与原上游
 
 真实 S3 验证已通过：隔离对象上的两个 `If-None-Match:*` 并发写返回412／200；正确 ETag 更新成功；旧 ETag 更新和重复创建均为412，失败写没有改变对象内容；两个基于同一 ETag 的并发更新为412／200。探针位于 Worker 不公开的独立 prefix，已删除。收据：本地 `.modelspage/r2-cas-live.json`。
 
-下一步验收：审核 PR 合并触发生产发布、不可变 catalog 公网 hash、manifest 条件切换，以及更新后三个域名 API／CORS／条件读取。未完成项不记为通过。
+## 审核合并后的首轮自动发布
+
+PR #3 经上述代码审核与 CI 后转为 ready，合并为 main `0e1950a98dcb0d14d0e3932e7bfd1e0eb605f4dd`。两条真实 push 链路均成功：
+
+- [版本化发布运行40577107798](https://github.com/cogine-ai/modelspage/actions/runs/40577107798)：识别 exact merged PR／当前 main；首次读取 manifest 为404；派生 sequence 1；构建、校验、C/P/N 准入、不可变上传／远端与公开回读、manifest 条件切换全部成功。
+- [主分支 CI 40577107392](https://github.com/cogine-ai/modelspage/actions/runs/40577107392) 成功。
+- Cloudflare Git 自动部署 `ba558214-8d26-465f-82d4-7a431dec8e7a` 成功，触发类型 `github:push`、commit 为同一 main；正式网页已回读。
+
+首次版本化 revision 为 `af8541539198b157589c7608c535f49fd352f94522f174a14c053ad528aa0f6d`，catalog 36,050,103字节，SHA-256 `ec2064a99685a237dd27c69639f39a2c531aa75d12be1a4a31dbeb2da2e3d7d5`。共11,916条精确身份／协议事实；发布器准入计数 C6766／P3326／有效日精度N11890，不把这些条数冒充独立模型数量。
+
+三个域名的 manifest 完整字节 hash 都是 `41fb6704d8ccf85f43333aa3cd7706734accf5fe80def6d9197befffd765b42a`；catalog 逐字节相同，并通过 size、bundle revision、JSON schema、来源／profile 再分发和兼容性校验。manifest／revision 条件 GET 都为304，revision HEAD为200，CORS预检204，错误 If-Match为412，公开 POST为405。读取路径没有给予公共写能力。
+
+网站 canonical 排名为617模型、C200／P54／N615，revision `607ceb319d52e1bef785a59ee2a43c0cd0f63160694e00c73991053f80078303`，三域名排名 JSON 字节 hash 均为 `df384a4862505fad20d4b73610577a603c0760d6b318cbf9fa000a217f3aba45`。原页面／API每域14条和 CORS通过；每域另外核对4类 API重复 `type=chat&type=image`、实验v2的 `type=decision` 及非法类型400，共15项过滤结果检查通过。
+
+Data 页补上现已可用的 `/v1/manifest.json` 入口。外网、S3认证、真实 CAS、生产发布和公开 API 验收分别完成；没有执行模型推理调用。收据保存在 `.modelspage/custom-domains-live.json`、`public-api-filters-live.json`、`v1-publication-live.json`。
+
+本次文档与入口链接更新用于单独验收无事实变化的审核合并：自动发布应返回 unchanged，保留 sequence、revision、发布时间及公开字节。该次实际结果以关联 PR 的 Actions／Pages deployment 与公开 manifest 字节回读为准。

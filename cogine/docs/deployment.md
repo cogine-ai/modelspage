@@ -1,8 +1,8 @@
 # 版本化 R2 数据分发、失败恢复与回退
 
-网站及 `/rankings.json` 已通过独立 Cloudflare Pages 部署：[modelspage.pages.dev](https://modelspage.pages.dev/)。网站的正式子域名、DNS 及自动构建见[公网部署记录](2026-10-28-public-deployment.md)。本节描述的是另一个版本化 `/v1/` 数据渠道，不能把其未启用状态等同于网站未上线。
+正式网站为 [models.cogine.ai](https://models.cogine.ai/)，另两个域名共用同一版本。网站 `/rankings.json` 和版本化 [`/v1/manifest.json`](https://models.cogine.ai/v1/manifest.json) 均已上线；两个合同分别服务 canonical 排名与带精确 Provider 身份的资料。域名、真实条件写及合并后自动发布的验证见[正式发布验收](2026-10-28-production-release.md)。
 
-版本化分发实现位于 [`store.ts`](../src/store.ts) 和 [`publish.ts`](../src/publish.ts)。2026-10-26 已使用本地 Wrangler 在账户 `a11312197b2f8ff3e535b8c2f4ac9b22` 创建专用 `modelspage-production` 桶，并通过 Cloudflare API 读回确认。桶为 Standard/APAC，无自定义桶域名，r2.dev 访问关闭。2026-10-28 已配置网站的只读 R2 binding，但桶中尚无正式 manifest；版本化数据发布开关仍为 `MODELSPAGE_PUBLISH_ENABLED=false`。
+版本化分发实现位于 [`store.ts`](../src/store.ts) 和 [`publish.ts`](../src/publish.ts)。专用桶为账户 `a11312197b2f8ff3e535b8c2f4ac9b22` 的 `modelspage-production`（Standard/APAC）。桶保持私有，r2.dev 关闭，网站通过只读代码路径的 R2 binding 分发。GitHub production 的两项专桶 S3 secrets、四项发布变量已配置，`MODELSPAGE_PUBLISH_ENABLED=true`；首版 sequence 1 已发布并从三个域名核对完整 hash。
 
 首发决策：主要 Provider 和模型的 C/P/N 应有广泛覆盖后再上线；范围和来源选择记录在[约束审计](2026-10-26-constraints-review.md)。不能把每类仅一条事实当成业务覆盖验收完成。
 
@@ -12,7 +12,7 @@
 
 DNS 由用户在现有 DNS 平台手动配置，统一留到部署准备的最后一步交付，不分批要求用户修改。先完成可独立推进的应用、数据和云端配置，再提供一张完整记录表：域名、DNS 管理平台、记录类型、主机名、实际目标值、TTL、代理状态和验证方式。记录值必须来自平台实际分配和确认，未取得的值明确标为待生成，不把示例或 r2.dev 地址当正式目标。
 
-候选入口为 `models.cogine.ai`（Spaceship）、`models.cogine.app`（Vercel）及 `models.cogineai.com`（当前 NS 查询为 DNSPod）。建议一个正式数据源，其他入口共用该版本或重定向。最终清单需覆盖实际选用的入口及所有权/证书验证记录；如接入方式涉及 nameserver 变更，应单独列出其范围，不能混作普通 CNAME。用户完成 DNS 后再执行公开路径、证书及缓存验收，在此之前这些检查保持未执行状态。
+已生效入口为 `models.cogine.ai`（Spaceship）、`models.cogine.app`（Vercel）及 `models.cogineai.com`（DNSPod）。三个 `models` CNAME 均指向 `modelspage.pages.dev`，verification／certificate validation 均 active，HTTPS、API、缓存头、CORS 和条件读取已分别回读验收。主地址为 models.cogine.ai；没有迁移主域 NS。
 
 网站目前使用 Pages 子域名接入和私有 R2 binding，外部 DNS 的子域名可以直接 CNAME 到实际 Pages hostname，绕开了直接给桶绑定域名的限制；无需迁移 NS 或开通 Business。只有今后选择 R2 自定义桶域名时，才适用[同账户 zone](https://developers.cloudflare.com/r2/buckets/public-buckets/#add-your-domain-to-cloudflare)／[partial setup](https://developers.cloudflare.com/dns/zone-setups/partial-setup/)的条件，不再把它们作为整个网站的部署阻塞。
 
@@ -30,13 +30,13 @@ bun run publish:dry-run
 ## 配置生产
 
 1. 创建只用于 Modelspage 的 R2 桶，生成只允许访问该桶的读写 S3 凭据；不复用 CogineWork 正式资产桶。
-2. 在同一 Cloudflare account 下把实际受控的自定义域名连接到桶，等待 Active。填入真实的 HTTPS origin 到 MODELSPAGE_PUBLIC_BASE_URL，不填路径、凭据、查询参数或 r2.dev。自定义域名支持 Cloudflare 缓存；r2.dev 用于非生产场景，见 [R2 公共桶文档](https://developers.cloudflare.com/r2/buckets/public-buckets/)。
-3. 设置 [`.env.example`](../../.env.example) 中的非秘密配置。GitHub 使用 `production` environment：Variables 为 MODELSPAGE_PUBLIC_BASE_URL / MODELSPAGE_R2_ACCOUNT_ID / MODELSPAGE_R2_BUCKET / MODELSPAGE_PUBLISH_ENABLED；Secrets 为 MODELSPAGE_R2_ACCESS_KEY_ID / MODELSPAGE_R2_SECRET_ACCESS_KEY。建议为该 environment 配置受保护分支及所需审核者。
-4. 为 manifest 配置明确的 Cloudflare Cache Rule：精确 `/v1/manifest.json` **Bypass cache**，浏览器尊重源 Cache-Control。为 `/v1/revisions/` 配置 Eligible for cache，Edge TTL 尊重源 Cache-Control，确保 JSON 也可缓存；不以全站 Edge TTL 规则覆盖 manifest。设置依据见 [Cache Rules 文档](https://developers.cloudflare.com/cache/how-to/cache-rules/settings/)。
-5. 若浏览器跨域直接读取，给桶配置只读 CORS：实际消费 origin、GET/HEAD，允许 If-None-Match 与 Cache-Control 请求头，ExposeHeaders 包含 ETag。测试应带 Origin；已有 CDN 对象可能需刷新才能获得新 CORS 头，见 [R2 CORS 文档](https://developers.cloudflare.com/r2/buckets/cors/)。桌面宿主自行读取时不必为并不存在的浏览器来源开放 CORS。
-6. 按来源逐一审核采集和公开派生用途。代码 MIT 许可不能替代 OpenRouter 等第三方数据条件。先通过 PR 提交来源配置、精确映射和必要逐项覆盖证据，再手动发布。
+2. 将实际域名连接到 Pages 项目并等待 Active，以 `PUBLIC_DATA` binding 读取私有专桶。`MODELSPAGE_PUBLIC_BASE_URL` 填正式 HTTPS origin，本项目为 `https://models.cogine.ai`；不需要给桶单独开公共域名或迁移 NS。
+3. GitHub 使用 `production` environment：Variables 为 MODELSPAGE_PUBLIC_BASE_URL / MODELSPAGE_R2_ACCOUNT_ID / MODELSPAGE_R2_BUCKET / MODELSPAGE_PUBLISH_ENABLED；Secrets 为 MODELSPAGE_R2_ACCESS_KEY_ID / MODELSPAGE_R2_SECRET_ACCESS_KEY。输入解密 key 沿用项目 repository secret。代码与本地样例默认关闭发布，真实生产环境显式启用。
+4. Worker 对 manifest 每次直接读取 R2，返回 `max-age=0, must-revalidate`；revision 返回一年 immutable。没有使用 Cache API 缓存 manifest；若以后添加 zone Cache Rule，不得覆盖此行为。当前验收覆盖真实 Cache-Control、ETag、304、HEAD 与错误 If-Match 的412。
+5. 跨域由 Pages Worker 提供，只读 GET/HEAD/OPTIONS，并暴露 ETag、Last-Modified、Cache-Control 和 Content-Length。浏览器不直接读取私有桶，因此不需要配置桶公共 CORS。实际预检及读取分别验证。
+6. 通过 PR 维护来源配置、精确身份和用途依据。代码 MIT 许可不能替代第三方数据许可；AA/OpenCode 的本项目公开范围已由所有者确认。合并后自动发布，手动运行保留作恢复或重试。
 
-本实现通过 S3 SDK 的 PutObject IfMatch / IfNoneMatch 条件写，不依赖 workflow 排队来冒充 CAS。Cloudflare 文档说明这些条件与实际对象写入原子评估，见 [R2 S3 扩展](https://developers.cloudflare.com/r2/api/s3/extensions/)；真实目标桶的功能与权限仍需首次上线前验证。
+本实现通过 S3 SDK 的 PutObject IfMatch / IfNoneMatch 条件写，不依赖 workflow 排队来冒充 CAS。Cloudflare 文档说明这些条件与实际对象写入原子评估，见 [R2 S3 扩展](https://developers.cloudflare.com/r2/api/s3/extensions/)；真实目标桶的并发创建、并发更新和旧 ETag 拒绝均已验证。
 
 ## 发布协议
 
@@ -78,4 +78,4 @@ bun run rollback --input dist/previous-verified-release --sequence 3 --published
 
 ## 每日加密排名输入
 
-当前 reviewed-main build 需要 `MODELSPAGE_INPUT_ENCRYPTION_KEY` 解密同 commit 的 `cogine/data/rankings.json`，只在可信 build 步骤注入；AA/OpenRouter API key 仅每日采集使用，发布不重新联网采样。未通过许可/首发检查的明文候选不能作为 Actions artifact 上传，公开生产 artifact 仅在成功发布后上传。三个项目专用 repository secrets 已配置；R2 写凭据与生产开关继续沿用单独的 production 环境。新配置不启用外网发布或修改 DNS。见[每日流程](2026-10-27-daily-cpn-integration.md)。
+当前 reviewed-main build 需要 `MODELSPAGE_INPUT_ENCRYPTION_KEY` 解密同 commit 的 `cogine/data/rankings.json`，只在可信 build 步骤注入；AA/OpenRouter API key 仅每日采集使用，发布不重新联网采样。未通过许可/首发检查的明文候选不能作为 Actions artifact 上传，公开生产 artifact 仅在成功发布后上传。三个项目专用 repository secrets 已配置；R2 写凭据与生产开关位于单独的 production 环境。两条自动部署流程已实跑成功，见[发布验收](2026-10-28-production-release.md)与[每日流程](2026-10-27-daily-cpn-integration.md)。
