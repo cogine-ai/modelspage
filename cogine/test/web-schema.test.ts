@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { buildRankingDataset, type CatalogModel, type CatalogProvider } from "../web/data.js";
 import { publicWebRankingDatasetSchema, validateWebRankingDataset, webRankingsJsonSchema } from "../web/schema.js";
 import { stableStringify } from "../src/integrity.js";
+import { selectPublishedDataset } from "../web/version.js";
 import { unknown, type Bundle, type Popularity } from "../src/types.js";
 import { bundle, capability, known, model, timestamp } from "./contract-fixture.js";
 
@@ -102,4 +103,15 @@ test("published JSON schema is generated from the runtime public shape and retai
   expect(definition.properties.models.items.additionalProperties).toBe(false);
   expect(definition.properties.attribution.items.additionalProperties).toBe(false);
   for (const mode of ["capability", "popularity", "newest"]) expect(definition.properties.order.properties[mode].uniqueItems).toBe(true);
+});
+
+test("code-only public deployments retain data revision/time; real fact changes advance the dataset", () => {
+  const previous = buildRankingDataset(publicInput(), models, providers, options);
+  const candidate = { ...structuredClone(previous), revision: "b".repeat(64), published_at: "2026-10-26T10:00:00.000Z", evaluated_at: "2026-10-26T10:00:00.000Z" };
+  expect(selectPublishedDataset(candidate, previous)).toBe(previous);
+  const changedInput = publicInput();
+  changedInput.facts[0]!.capability = capability(61);
+  const changed = buildRankingDataset(changedInput, models, providers, options);
+  expect(selectPublishedDataset(changed, previous)).toBe(changed);
+  expect(previous.models[0]!.c).toBe(60);
 });

@@ -8,7 +8,7 @@ import { validateBundle } from "../src/schema.ts";
 import { bundleRevision } from "../src/integrity.ts";
 import type { Bundle } from "../src/types.ts";
 import { licensePath, upstreamLicense } from "./site.ts";
-import { validateWebRankingDataset } from "./schema.ts";
+import { selectPublishedDataset } from "./version.ts";
 
 type Page = { html: string; metadata: { title: string; description: string } };
 type Section = "models" | "providers" | "labs" | "rankings" | "data";
@@ -24,12 +24,15 @@ export function extendPages(pages: Map<string, Page>, catalog: { models: Record<
   if (publicBuild && !input) throw new Error("Public web builds require a validated C/P/N catalog input");
   const bundle = input ? validateBundle(JSON.parse(readFileSync(resolve(input), "utf8"))) : emptyBundle(lock);
   if (input && bundleRevision(bundle) !== bundle.revision) throw new Error("Web preview catalog revision does not match its content");
-  const dataset = buildRankingDataset(bundle, catalog.models, catalog.providers, {
+  let dataset = buildRankingDataset(bundle, catalog.models, catalog.providers, {
     now: bundle.published_at,
     audience: publicBuild ? "public" : "local-preview",
     canonical_source: { commit: lock.commit, retrieved_at: lock.imported_at, url: lock.repository },
   });
-  if (publicBuild) validateWebRankingDataset(dataset);
+  if (publicBuild) {
+    const previous = process.env.MODELSPAGE_WEB_PREVIOUS_RANKINGS;
+    dataset = selectPublishedDataset(dataset, previous ? JSON.parse(readFileSync(previous, "utf8")) : undefined);
+  }
   AdditionalFiles.set("/rankings.json", JSON.stringify(dataset));
   AdditionalFiles.set("/rankings.schema.json", readFileSync(resolve(import.meta.dir, "../schema/web-rankings.schema.json"), "utf8"));
 
