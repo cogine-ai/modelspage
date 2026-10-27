@@ -3,8 +3,8 @@
 ## 当前已完成
 
 - 三域名 `models.cogine.ai`、`models.cogine.app`、`models.cogineai.com` 的 Cloudflare Pages verification／certificate validation 均为 active；实际 HTTPS `/rankings.json` 均返回200、614模型和相同公开 revision `47eb9794f9ad3f8a69cc4de6f0159499fe3e358bb6d7589be221b2eb0ed82d6c`。Google 与 Cloudflare 公共 DNS 均返回已登记 Pages CNAME。
-- Pages 生产配置与随仓库 Wrangler 配置的正式 origin 改为 `https://models.cogine.ai`；原有 `PUBLIC_DATA` 只读 binding 保持专桶 `modelspage-production`。网页元数据的最终公开回读在该提交上线后验收。
-- GitHub production 已填写正式 public base URL、R2 account 与 bucket，发布开关在真实专桶凭据／条件写验证前保持 false；仓库级输入解密 secret 已有，无需复制到聊天或仓库。
+- Pages 生产配置与随仓库 Wrangler 配置的正式 origin 改为 `https://models.cogine.ai`；原有 `PUBLIC_DATA` 只读 binding 保持专桶 `modelspage-production`。已单独重建当前 main，部署 `35fa99b4-54b1-4fe0-8963-3716b5a2efbb` 成功；三个域名各14条页面/API及 CORS 预检均通过，分享图元数据均使用正式 origin，排名 JSON 完整字节一致。
+- GitHub production 已填写正式 public base URL、R2 account 与 bucket。真实专桶凭据与条件写验证通过后，将两项 S3 Secrets 经标准输入写入该 environment 并开启生产发布；仓库级输入解密 secret 已有，无需复制到聊天或仓库。
 
 ## 审核 PR #3 的整合
 
@@ -18,12 +18,14 @@ Canonical 来源时间改用 `lock.synced_at ?? lock.imported_at`，与原上游
 
 额外运行上游原测试为720通过／10失败，涉及原 GitHub Copilot／Hyper／Eden AI／DeepInfra／LLM Gateway／Vercel sync断言以及缺失 weights 数据。`git diff --quiet dde15ad9b -- models providers packages/core` 返回0，确认这些代码、测试与模型资料原样来自固定上游输入；未为上线修改上游断言或补造来源。这一组不报告为 PASS，失败详情保存在本地 `production-core-tests.log`。
 
-## R2 凭据与发布状态
+## R2 凭据配置与真实条件写
 
-现有 Wrangler OAuth 对 account／user token 创建均返回403/code9109，不能据此声称专桶凭据已经配置。已用官方 `cf@1.0.0-beta.23` 请求账号读取、创建账号 Token、R2 对象读写及离线登录，用户完成设备授权；当前返回的 scope 未含 `account_api_tokens:create`，创建专桶 account token 仍返回403，继续核对该项授权。
+原有 Wrangler OAuth 对 account／user token 创建均返回403/code9109。改用官方 `cf@1.0.0-beta.23` 请求账号读取、创建账号 Token、R2 对象读写及离线登录，首次一般授权后未取得 `account_api_tokens:create`，创建专桶 account token 仍返回403。
 
-已在真实 CLI consent 页面确认原因：`Sensitive scopes → Account API Token Provisioning` 是单独的开关，当前为关闭；一般 Authorize 没有包括此能力。账号 membership 是 `Super Administrator - All Privileges`，不需要修改账号角色。已向用户展示这一具体开关并请求补授，未替用户点击新的权限授权。一次设备码随后到期，不把过期或普通登录成功当成该项授权成功。
+真实 CLI consent 页面确认：`Sensitive scopes → Account API Token Provisioning` 是单独的开关，一般 Authorize 不包括这个默认关闭的能力。账号 membership 是 `Super Administrator - All Privileges`，没有修改角色。数次设备码到期后，用户明确开启敏感权限并授权，CLI 回读 scope 确认含 `account_api_tokens:create`，随后官方 CLI 创建专桶 account token 成功。
 
-目标凭据仅允许 `modelspage-production` 的 Bucket Item Write（含对象读写/list），不复用 CogineWork 桶凭据，不把宽 OAuth／refresh token复制到 CI。真正成功后经标准输入写入 GitHub Secrets；本记录只保存非秘密标识与验证结果。
+凭据仅允许 `modelspage-production` 的 Bucket Item Write（含对象读写/list），permission group 为 `2efd5506f9c8494dacb1fa10a3e7d5b6`，resource 精确为 `com.cloudflare.edge.r2.bucket.a11312197b2f8ff3e535b8c2f4ac9b22_default_modelspage-production`。创建结果的 policy 已逐项校对。没有复用 CogineWork 桶凭据，没有把 OAuth／refresh token复制到 CI。S3 凭据保存在本地被忽略的0600文件，写入 GitHub 时使用标准输入，本记录与日志不含秘密值。
 
-待真实完成的验收：专桶 S3 认证、隔离对象上的 If-None-Match／If-Match 原子条件写、审核 PR 合并触发生产发布、不可变 catalog 公网 hash、manifest 条件切换、三个域名 API／CORS／条件读取及网站元数据。未完成项不记为通过。
+真实 S3 验证已通过：隔离对象上的两个 `If-None-Match:*` 并发写返回412／200；正确 ETag 更新成功；旧 ETag 更新和重复创建均为412，失败写没有改变对象内容；两个基于同一 ETag 的并发更新为412／200。探针位于 Worker 不公开的独立 prefix，已删除。收据：本地 `.modelspage/r2-cas-live.json`。
+
+下一步验收：审核 PR 合并触发生产发布、不可变 catalog 公网 hash、manifest 条件切换，以及更新后三个域名 API／CORS／条件读取。未完成项不记为通过。
