@@ -44,4 +44,12 @@ PR #3 经上述代码审核与 CI 后转为 ready，合并为 main `0e1950a98dcb
 
 Data 页补上现已可用的 `/v1/manifest.json` 入口。外网、S3认证、真实 CAS、生产发布和公开 API 验收分别完成；没有执行模型推理调用。收据保存在 `.modelspage/custom-domains-live.json`、`public-api-filters-live.json`、`v1-publication-live.json`。
 
-本次文档与入口链接更新用于单独验收无事实变化的审核合并：自动发布应返回 unchanged，保留 sequence、revision、发布时间及公开字节。该次实际结果以关联 PR 的 Actions／Pages deployment 与公开 manifest 字节回读为准。
+## 无变化重发回归与修复
+
+文档与入口链接 PR #7 合并为 `a08a4dcdfbfe6f0eecc75d41cf05065b36801844`；[CI 40578939920](https://github.com/cogine-ai/modelspage/actions/runs/40578939920)、[自动发布40578939900](https://github.com/cogine-ai/modelspage/actions/runs/40578939900) 和 Pages 部署 `f40eb1e8-566b-4c24-b44e-4977ab291675` 均成功，网站排名 JSON 保持原 revision、时间与完整字节。但版本化发布意外生成了 sequence 2。
+
+逐字段比较两个真实 catalog，11,916条事实和所有 metric profile 完全相同；唯一来源变化是停用的旧 `openrouter-weekly` 没有 snapshot 时，仅因存在 previous catalog 就换了一段 error 说明。这处诊断变化触发了正确保留来源审计字段的发布比较，制造了无数据变化的新版本。
+
+修复仅在该来源已经 disabled 且没有新 snapshot 时保留既有说明；当前审核后的 usage 仍照常更新，其他状态转为 disabled 时仍记录原因。没有放宽发布比较、删除来源审计或改变 C/P/N 规则。回归先复现 initial build → previous 重建会发布 sequence 2，修复后返回 unchanged／sequence 1，并确认 manifest 内容和元数据不变、候选对象未上传。本项目完整209项测试／1395断言与类型检查通过。
+
+已发布 sequence 2 保留为历史，不倒退发布序号。当前 revision 为 `9c8dd12a8c6b4edfd5a861044ccdc1e008afb8a9809d192d324b6d416a5e5332`，发布时间 `2026-10-27T20:32:18.000Z`，manifest SHA-256 `369d163684f35b10b22d3eae7a597e6cee61b822b55f3ebf3d150ad1128e615e`；catalog 36,050,111字节、SHA-256 `b82f971d64a13a6de4d622e6c3f5c3d45d42e19937c97bbc777a6e65211d6b81`。修复合并后的真实 unchanged 结果、Actions／Pages deployment 及三域名公开字节回读记录在关联修复 PR。

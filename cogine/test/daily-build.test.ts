@@ -30,6 +30,21 @@ test('one fixed encrypted cohort builds C/P/N together, reproduces byte-for-byte
  const release=await readRelease(join(root,'a'));const store=new DirectoryStore(join(root,'bucket'));
  expect((await publishRelease(store,release,{allowFixture:true})).status).toBe('published');expect((await publishRelease(store,release,{allowFixture:true})).status).toBe('unchanged');
 });
+test('rebuilding the same cohort with its previous catalog preserves the active publication and freshness',async()=>{
+ const {root,options}=await fixture();
+ const legacyConfigPath=join(root,'cogine/fixtures/openrouter-config.json');
+ const legacyConfig=await Bun.file(legacyConfigPath).json();
+ legacyConfig.enabled=false;legacyConfig.usage={collection:'unverified',redistribution:'unverified',evidence:'Synthetic legacy weekly source is inactive; the fixed cohort supplies current ranking sources'};
+ await Bun.write(legacyConfigPath,JSON.stringify(legacyConfig));
+ const firstDir=join(root,'first');const first=await build({...options,outDir:firstDir});
+ const store=new DirectoryStore(join(root,'bucket'));
+ expect((await publishRelease(store,await readRelease(firstDir),{allowFixture:true})).status).toBe('published');
+ const activeManifest=await store.get('v1/manifest.json');
+ const nextDir=join(root,'next');const next=await build({...options,previousBundlePath:join(firstDir,first.manifest.objects.catalog.path),publishedAt:'2026-10-28T00:00:00Z',sequence:2,outDir:nextDir});
+ expect(await publishRelease(store,await readRelease(nextDir),{allowFixture:true})).toEqual({status:'unchanged',sequence:1,revision:first.bundle.revision});
+ expect(await store.get('v1/manifest.json')).toEqual(activeManifest);
+ expect(await store.get(next.manifest.objects.catalog.path)).toBeNull();
+});
 test('current policy revocation overrides encrypted input and retained v2 catalog authority',async()=>{
  const {root,path,options}=await fixture();const first=await build({...options,outDir:join(root,'a')});const previous=join(root,'a',first.manifest.objects.catalog.path);
  const config=await Bun.file(join(root,'cogine/config/rank-sources.json')).json();config.sources.openrouter.redistribution='unverified';await Bun.write(join(root,'cogine/config/rank-sources.json'),JSON.stringify(config));
