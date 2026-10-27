@@ -41,6 +41,16 @@ PR #4 已合并至 main `0a933ffb13b1d4ca73c299daef6f9eb79b2669ab`，完整 GitH
 
 独立 GitHub workflow `Publish reviewed Modelspage revision` 仍在原有 `MODELSPAGE_PUBLISH_ENABLED` guard 处拒绝运行；这表示版本化 R2 发布未启用，与本次 Pages 网站部署是两条流程，不把该 workflow 报为通过。
 
+### 最终部署与重复构建
+
+PR #5 已将目录枚举顺序修复接入 main `d2f6639511b3db8262ea7a5165f1a778d649f22f`；206 tests／1,376 assertions 与完整 GitHub CI 通过。真实主分支自动部署 `a5f8d005-9367-4362-9176-36c287c16a0d` 成功，恢复普通构建命令后重建 `08a8bf18-87f3-4175-bde2-ef27ce965fad` 也成功。两条部署 URL 与生产别名的排名 JSON 均 HTTP 200，完整字节 SHA-256 都为 `817bf4e011371ff2caedd9a26b4bb8e76a4c5f8161b2777282a80019d10ed29b`，公开 revision 都为 `47eb9794f9ad3f8a69cc4de6f0159499fe3e358bb6d7589be221b2eb0ed82d6c`，覆盖仍为614模型／C199／P54／N612。
+
+另一个跨主机指纹差异已定位：固定 upstream pin 中 `providers/nearai/models` 同时有 `Qwen`（5条）与 `qwen`（2条）目录。macOS 大小写不敏感工作目录将它们合并，Bun 枚举时把 `qwen/qwen3.5-397b-a17b`、`qwen/qwen3.7-max` 变为 `Qwen/...`，进而改变 registry 和 P 组合证据指纹。没有改变模型名称、canonical ID、权重或实际分值。
+
+用同一官方 Bun 1.4.4 容器验证：读取 macOS 只读挂载目录，9271行 registry 指纹为 `f0df926e56649d1d96489a3df2e0ed232654873bbd9f1acdf52a3b15f0fef5f9`；从 Git archive 在 Linux tmpfs 独立解压固定输入，同为9271行但指纹为 `9036610d92c723345f3ebbd8577737aa469e051f6983f70b1e2bf28fdc6a8448`，精确匹配 Cloudflare 原生 Git 构建。后者保留了正确 API ID，不对 ID 做统一大小写处理。正式发布使用原生 Linux Git 检出；本机大小写合并的解析结果不能当作精确 Provider ID 的完整验收。该调查未改上游解析器、模型文件或排序值。
+
+一次性云端诊断只打印输入 hash，没有打印解封内容或密钥，已恢复构建命令 `bun install --frozen-lockfile --ignore-scripts && bun run web:release`。证据收据保存在本地 `.modelspage/main-web-deployment.json`、`public-web-repeat-build.json`；真实公网浏览器无 error／warn，截图为 `/tmp/modelspage-public-20261028/rankings.png`。
+
 ## DNS 交付
 
 三处 custom domain 已在 Pages 登记，目前为 initializing／verification pending。目标来自平台实际分配，并非示例。
