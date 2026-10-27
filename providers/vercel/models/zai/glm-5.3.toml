@@ -5,13 +5,13 @@ base_model = "zhipuai/glm-5.3"
 name = "GLM 5.3"
 
 [capabilities]
-tools = { supported = true }
+tools = { supported = true, choice = ["auto", "none", "required", "tool"] }
 reasoning = { supported = true, effort = ["low", "high", "max"] }
 structured_output = true
 cache = { implicit = true, explicit = true }
 
 [limit]
-output = 1_000_000
+output = 262_144
 
 [api.chat-completions]
 capabilities = { system_updates = true }

@@ -6,7 +6,7 @@
     "BUN_VERSION": "1.4.4",
     "SKIP_DEPENDENCY_INSTALL": "1",
     "MODELSPAGE_WEB_MODE": "public",
-    "MODELSPAGE_WEB_ORIGIN": "https://modelspage.pages.dev"
+    "MODELSPAGE_WEB_ORIGIN": "https://models.cogine.ai"
   },
   "r2_buckets": [
     { "binding": "PUBLIC_DATA", "bucket_name": "modelspage-production" }

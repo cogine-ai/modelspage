@@ -7,7 +7,7 @@ base_model = "openai/gpt-6.1-sol"
 name = "GPT-6.1 Sol (Fast)"
 
 [capabilities]
-tools = { supported = true }
+tools = { supported = true, choice = ["auto", "none", "required", "tool"] }
 reasoning = { supported = true, effort = ["low", "medium", "high", "xhigh", "max"] }
 structured_output = true
 system_updates = true

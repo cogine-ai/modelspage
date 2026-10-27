@@ -29,8 +29,9 @@ function environment() {
     files.set(`/_api${suffix}.json`, { body: JSON.stringify(value.providers), type: "application/json", etag: `"api${suffix}"` });
     files.set(`/_models${suffix}.json`, { body: JSON.stringify(value.models), type: "application/json", etag: `"models${suffix}"` });
     files.set(`/_catalog${suffix}.json`, { body: JSON.stringify(value), type: "application/json", etag: `"catalog${suffix}"` });
+    const v2Models = catalog(group === "default" ? modelGroups.all! : models).providers["Host-A"].models;
+    files.set(`/_experimental_v2.0_api${suffix}.json`, { body: JSON.stringify({ "V2-Host": { name: "V2 Host", models: v2Models } }), type: "application/json", etag: `"experimental${suffix}"` });
   }
-  files.set("/_experimental_v2.0_api.json", { body: '{"v2":true}', type: "application/json" });
   files.set("/logos/default.svg", { body: "<svg>default</svg>", type: "image/svg+xml" });
   files.set("/rankings", { body: "<h1>Rankings</h1>", type: "text/html" });
   files.set("/", { body: "<h1>Modelspage</h1>", type: "text/html" });
@@ -81,6 +82,19 @@ test("public catalog APIs retain default, all, single, and multiple type semanti
   expect(assetRequests.every(value => new URL(value.url).search === "")).toBe(true);
 });
 
+test("catalog APIs combine repeated type parameters before filtering", async () => {
+  const { env } = environment();
+  const query = "?type=chat&type=image&type=chat";
+  const api = await (await request(env, "/api.json" + query)).json();
+  expect(Object.keys(api["Host-A"].models)).toEqual(["Vendor/Text:free", "image"]);
+  expect(Object.keys(await (await request(env, "/models.json" + query)).json())).toEqual(["chat", "image"]);
+  const combined = await (await request(env, "/catalog.json" + query)).json();
+  expect(Object.keys(combined.models)).toEqual(["chat", "image"]);
+  const schema = await (await request(env, "/model-schema.json" + query)).json();
+  expect(schema.$defs.Model.enum).toEqual(["Host-A/Vendor/Text:free", "Host-A/image"]);
+  expect((await request(env, "/api.json?type=chat&type=bogus")).status).toBe(400);
+});
+
 test("invalid type values fail before assets are read; prebuilt responses preserve conditional GET", async () => {
   const { env, assetRequests } = environment();
   for (const type of ["bogus", "all,chat", "Chat", "chat,"]) {
@@ -112,7 +126,28 @@ test("the public schema and experimental API remain available without the upstre
   const schema = await (await request(env, "/model-schema.json?type=all")).json();
   expect(schema.$id).toBe(base + "/model-schema.json");
   expect(schema.$defs.Model.enum).toEqual(["Host-A/Vendor/Text:free", "Host-A/decision", "Host-A/embedding", "Host-A/image"]);
-  expect(await (await request(env, "/experimental/v2.0/api.json")).json()).toEqual({ v2: true });
+  const v2 = await (await request(env, "/experimental/v2.0/api.json")).json();
+  expect(Object.keys(v2["V2-Host"].models)).toEqual(["Vendor/Text:free", "image", "decision", "embedding"]);
+});
+
+test("experimental v2 honors type filters while its default still includes every model", async () => {
+  const { env } = environment();
+  const explicit = await (await request(env, "/experimental/v2.0/api.json?type=decision")).json();
+  expect(Object.keys(explicit["V2-Host"].models)).toEqual(["decision"]);
+  const all = await (await request(env, "/experimental/v2.0/api.json?type=all")).json();
+  expect(Object.keys(all["V2-Host"].models)).toEqual(["Vendor/Text:free", "image", "decision", "embedding"]);
+  for (const query of ["?type=chat,image", "?type=chat&type=image&type=chat"]) {
+    const response = await request(env, "/experimental/v2.0/api.json" + query);
+    const value = await response.json();
+    expect(Object.keys(value["V2-Host"].models)).toEqual(["Vendor/Text:free", "image"]);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  }
+  const conditional = await request(env, "/experimental/v2.0/api.json?type=decision", { headers: { "If-None-Match": '"experimental-decision"' } });
+  expect(conditional.status).toBe(304);
+  expect(conditional.headers.get("ETag")).toBe('"experimental-decision"');
+  const invalid = environment();
+  expect((await request(invalid.env, "/experimental/v2.0/api.json?type=chat&type=bogus")).status).toBe(400);
+  expect(invalid.assetRequests).toHaveLength(0);
 });
 
 test("manifest reads are fresh across requests, retain metadata, and never inherit immutable cache rules", async () => {

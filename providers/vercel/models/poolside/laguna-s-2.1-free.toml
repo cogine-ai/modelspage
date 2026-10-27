@@ -11,7 +11,7 @@ name = "Laguna S 2.1 Free"
 description = "Free provider route for experiments, demos, and cost-sensitive chat workloads"
 
 [capabilities]
-tools = { supported = true }
+tools = { supported = true, choice = ["auto", "none", "required", "tool"] }
 reasoning = { supported = true, toggle = true }
 structured_output = false
 
