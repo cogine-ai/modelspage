@@ -6,7 +6,7 @@ schema = 2
 base_model = "openai/gpt-5.4"
 
 [capabilities]
-tools = { supported = true }
+tools = { supported = true, choice = ["auto", "none", "required", "tool"] }
 reasoning = { supported = true, effort = ["none", "low", "medium", "high", "xhigh"] }
 structured_output = true
 temperature = false

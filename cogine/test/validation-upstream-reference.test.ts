@@ -22,7 +22,8 @@ describe("latest upstream local compatibility isolation", () => {
   test("one semantic lab failure preserves good model inheritance and the original archive", async () => {
     const { root, dataDir, goodLab } = await fixture();
     try {
-      const badLab = goodLab.replace("schema = 2", 'schema = 2\ntype = "audio"');
+      // Valid v2 metadata still needs v2_only when its type cannot be represented in v1.
+      const badLab = goodLab.replace("schema = 2", 'schema = 2\ntype = "extraction"');
       const badPath = join(dataDir, "models/fixture/bad.toml");
       await Bun.write(badPath, badLab);
       const diagnostics: { path: string; issues: unknown[] }[] = [];
@@ -83,7 +84,8 @@ test("N projection preserves inheritance, explicit override and omit without acc
     expect(inherited?.release_date).toBe("2024-05-13");
     expect(inherited?.removed_fields).toEqual(["api.responses.capabilities.tools"]);
     expect(result.dates.get("providers/fixture/models/override.toml")?.release_date).toBe("2025-06-04");
-    expect(result.dates.get("providers/fixture/models/override.toml")?.removed_fields).toEqual(["api.responses.capabilities.tools.search"]);
+    // search is now a known boolean; this unsupported shape removes its tools container.
+    expect(result.dates.get("providers/fixture/models/override.toml")?.removed_fields).toEqual(["api.responses.capabilities.tools"]);
     expect(result.dates.has("providers/fixture/models/omitted.toml")).toBe(false);
     expect(result.dates.has("providers/fixture/models/override-omitted.toml")).toBe(false);
     expect(referenceReleaseDate(undefined, undefined, { release_date: "2025-06-04", base_model_omit: ["release_date"] }).date).toBeNull();

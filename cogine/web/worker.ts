@@ -32,7 +32,7 @@ export interface Env {
 interface CatalogModel { type?: ModelTypeValue }
 interface CatalogProvider { models: Record<string, CatalogModel> }
 interface Catalog { models: Record<string, CatalogModel>; providers: Record<string, CatalogProvider> }
-type Endpoint = "api" | "models" | "catalog";
+type Endpoint = "api" | "models" | "catalog" | "experimental_v2.0_api";
 const catalogCache = new WeakMap<AssetBinding, Promise<Catalog>>();
 const manifestPath = "/v1/manifest.json";
 const revisionPath = /^\/v1\/revisions\/[a-f0-9]{64}\/catalog\.json$/;
@@ -83,6 +83,12 @@ async function catalogResponse(request: Request, env: Env, endpoint: Endpoint, f
     if (!response.ok && response.status !== 304) return json({ error: "Catalog data is unavailable" }, response.status);
     if (response.headers.get("Content-Type")?.includes("text/html")) return json({ error: "Catalog data is unavailable" }, 404);
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers: cors(new Headers(response.headers)) });
+  }
+  if (endpoint === "experimental_v2.0_api") {
+    const response = await env.ASSETS.fetch(assetRequest(request, "/_experimental_v2.0_api-all.json", true));
+    if (!response.ok || response.headers.get("Content-Type")?.includes("text/html")) throw new Error("Experimental catalog asset is unavailable");
+    const providers = await response.json() as Catalog["providers"];
+    return json(filterProvidersByModelType(providers, filter), 200, { "Cache-Control": "public, max-age=3600" });
   }
   const catalog = await fullCatalog(request, env.ASSETS);
   const value = endpoint === "api" ? filterProvidersByModelType(catalog.providers, filter)
@@ -145,15 +151,15 @@ async function publicDataResponse(request: Request, env: Env) {
 async function route(request: Request, env: Env) {
   const url = new URL(request.url);
   if (url.pathname.startsWith("/v1/")) return publicDataResponse(request, env);
-  const endpoint: Endpoint | undefined = url.pathname === "/api.json" ? "api" : url.pathname === "/models.json" ? "models" : url.pathname === "/catalog.json" ? "catalog" : undefined;
+  const endpoint: Endpoint | undefined = url.pathname === "/api.json" ? "api" : url.pathname === "/models.json" ? "models" : url.pathname === "/catalog.json" ? "catalog" : url.pathname === "/experimental/v2.0/api.json" ? "experimental_v2.0_api" : undefined;
   if (endpoint || url.pathname === "/model-schema.json") {
     let filter: ModelTypeFilter;
-    try { filter = parseModelTypes(url.searchParams.get("type")); }
+    try { filter = parseModelTypes(url.searchParams.getAll("type").join(",")); }
     catch (error) {
       if (!(error instanceof InvalidModelTypeError)) throw error;
       return json({ error: error.message, allowed: [...MODEL_TYPES, "all"] }, 400);
     }
-    if (endpoint) return catalogResponse(request, env, endpoint, filter);
+    if (endpoint) return catalogResponse(request, env, endpoint, endpoint === "experimental_v2.0_api" && filter === "default" ? "all" : filter);
     const catalog = await fullCatalog(request, env.ASSETS);
     const providers = filterProvidersByModelType(catalog.providers, filter);
     return json({
@@ -162,7 +168,6 @@ async function route(request: Request, env: Env) {
       $defs: { Model: { type: "string", enum: Object.entries(providers).flatMap(([provider, value]) => Object.keys(value.models).map(model => `${provider}/${model}`)).sort(), description: "AI model identifier in provider/model format" } },
     }, 200, { "Cache-Control": "public, max-age=3600" });
   }
-  if (url.pathname === "/experimental/v2.0/api.json") return env.ASSETS.fetch(assetRequest(request, "/_experimental_v2.0_api.json"));
   const response = await env.ASSETS.fetch(request);
   return response.status === 404 && url.pathname.startsWith("/logos/")
     ? env.ASSETS.fetch(assetRequest(request, "/logos/default.svg")) : response;

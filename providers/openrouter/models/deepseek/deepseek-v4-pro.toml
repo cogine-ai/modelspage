@@ -7,7 +7,7 @@ schema = 2
 base_model = "deepseek/deepseek-v4-pro"
 
 [capabilities]
-tools = { supported = true }
+tools = { supported = true, choice = ["auto", "none", "required", "tool"] }
 reasoning = { supported = true, effort = ["none", "high", "xhigh"] }
 structured_output = true
 
@@ -24,8 +24,8 @@ sdk = { aisdk = "@ai-sdk/openai", opencodeai = "@opencode/ai/providers/openai-co
 sdk = { aisdk = "@ai-sdk/anthropic", opencodeai = "@opencode/ai/providers/anthropic-compatible" }
 
 [cost.text.input]
-price = 0.2088
-cache = { read = 0.0174 }
+price = 0.95526
+cache = { read = 0.079605 }
 
 [cost.text.output]
-price = 0.4176
+price = 1.91052

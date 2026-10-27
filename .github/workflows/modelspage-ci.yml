@@ -33,6 +33,11 @@ jobs:
       - run: bun run typecheck:web
       - run: bun run schema:check
       - run: bun cogine/web/schema.ts --check
+      - run: bun validate
+      - name: Verify original API against the fixed upstream baseline
+        run: |
+          pinned=$(jq -er '.commit | select(type == "string" and test("^[a-f0-9]{40}$"))' cogine/upstream.lock.json)
+          bun run v1:check "$pinned"
       - run: bun run test:cogine
       - run: bun run build:fixture
       - run: bun cogine/src/cli.ts validate --input dist/fixture

@@ -27,7 +27,7 @@ export function extendPages(pages: Map<string, Page>, catalog: { models: Record<
   let dataset = buildRankingDataset(bundle, catalog.models, catalog.providers, {
     now: bundle.published_at,
     audience: publicBuild ? "public" : "local-preview",
-    canonical_source: { commit: lock.commit, retrieved_at: lock.imported_at, url: lock.repository },
+    canonical_source: { commit: lock.commit, retrieved_at: lock.synced_at ?? lock.imported_at, url: lock.repository },
   });
   if (publicBuild) {
     const previous = process.env.MODELSPAGE_WEB_PREVIOUS_RANKINGS;
