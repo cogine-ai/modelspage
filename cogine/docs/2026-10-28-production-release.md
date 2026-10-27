@@ -22,6 +22,8 @@ Canonical 来源时间改用 `lock.synced_at ?? lock.imported_at`，与原上游
 
 现有 Wrangler OAuth 对 account／user token 创建均返回403/code9109，不能据此声称专桶凭据已经配置。已用官方 `cf@1.0.0-beta.23` 请求账号读取、创建账号 Token、R2 对象读写及离线登录，用户完成设备授权；当前返回的 scope 未含 `account_api_tokens:create`，创建专桶 account token 仍返回403，继续核对该项授权。
 
+已在真实 CLI consent 页面确认原因：`Sensitive scopes → Account API Token Provisioning` 是单独的开关，当前为关闭；一般 Authorize 没有包括此能力。账号 membership 是 `Super Administrator - All Privileges`，不需要修改账号角色。已向用户展示这一具体开关并请求补授，未替用户点击新的权限授权。一次设备码随后到期，不把过期或普通登录成功当成该项授权成功。
+
 目标凭据仅允许 `modelspage-production` 的 Bucket Item Write（含对象读写/list），不复用 CogineWork 桶凭据，不把宽 OAuth／refresh token复制到 CI。真正成功后经标准输入写入 GitHub Secrets；本记录只保存非秘密标识与验证结果。
 
 待真实完成的验收：专桶 S3 认证、隔离对象上的 If-None-Match／If-Match 原子条件写、审核 PR 合并触发生产发布、不可变 catalog 公网 hash、manifest 条件切换、三个域名 API／CORS／条件读取及网站元数据。未完成项不记为通过。
