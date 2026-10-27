@@ -1,0 +1,34 @@
+import { afterEach, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { inspectRankingEnvelope, openRankingInput, sealRankingInput, writeRankingInput, type RankingInput } from "../src/ranking-input.js";
+const key = "ab".repeat(32), otherKey = "cd".repeat(32);
+const directories: string[] = [];
+afterEach(async () => { for (const path of directories.splice(0)) await rm(path, { recursive: true, force: true }); });
+const input = (): RankingInput => ({ schema_version: 1, evaluation_date: "2026-10-27", policy: { id: "synthetic-policy", window_days: 7, weights_status: "accepted", weights: { one: .6, two: .3, three: .1 } }, snapshots: [{ schema_version: 1, attempted_at: "2026-10-27T01:00:00Z", data_as_of_precision: null, coverage_truncated: false, cutoff: "Synthetic only", scope: "Synthetic only", window: { start: null, end: null, label: "Synthetic" }, authentication_provided: false, endpoints: ["https://example.invalid"], raw_files: [], issues: [], metadata: {}, source_id: "synthetic", status: "success", complete_response: true, retrieved_at: "2026-10-27T01:00:00Z", data_as_of: null, usage: { collection: "allowed", redistribution: "unverified", evidence: "Synthetic internal data" }, entries: [{ source_model_id: "synthetic-confidential-point", metric: "synthetic", value_unit: "points", value: 98.7654321 }] }], catalogs: [] });
+test("ranking input is authenticated ciphertext with bounded review metadata, never plaintext metrics", () => {
+ const data = input(), envelope = sealRankingInput(data, key);
+ expect(openRankingInput(envelope, key)).toEqual(data);
+ expect(JSON.stringify(envelope)).not.toContain("synthetic-confidential-point");
+ expect(JSON.stringify(envelope)).not.toContain("98.7654321");
+ expect(() => inspectRankingEnvelope(data)).toThrow();
+ expect(() => openRankingInput(envelope, otherKey)).toThrow("authentication");
+ const bad = structuredClone(envelope); bad.review.sources[0]!.entries++;
+ expect(() => openRankingInput(bad, key)).toThrow("metadata");
+ const corrupted = structuredClone(envelope); corrupted.ciphertext = (corrupted.ciphertext[0] === "A" ? "B" : "A") + corrupted.ciphertext.slice(1);
+ expect(() => openRankingInput(corrupted, key)).toThrow("authentication");
+ expect(() => sealRankingInput(data, "invalid")).toThrow("project-only");
+});
+test("unchanged input reuses exactly the prior authenticated bytes, changed data produces a new revision", async () => {
+ const data = input(), previous = sealRankingInput(data, key);
+ expect(sealRankingInput(data, key, previous)).toEqual(previous);
+ const changed = input(); changed.evaluation_date = "2026-10-28";
+ expect(sealRankingInput(changed, key, previous).plaintext_sha256).not.toBe(previous.plaintext_sha256);
+ const dir = await mkdtemp(join(tmpdir(), "ranking-envelope-")); directories.push(dir);
+ const path = join(dir, "rankings.json");
+ expect((await writeRankingInput(path, data, key)).changed).toBe(true);
+ const bytes = await Bun.file(path).text();
+ expect((await writeRankingInput(path, data, key)).changed).toBe(false);
+ expect(await Bun.file(path).text()).toBe(bytes);
+});

@@ -21,6 +21,10 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Fetch the pinned upstream input for catalog validation
+        run: |
+          pinned=$(jq -er '.commit | select(type == "string" and test("^[a-f0-9]{40}$"))' cogine/upstream.lock.json)
+          git fetch --no-tags --depth=1 origin "$pinned"
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: .bun-version

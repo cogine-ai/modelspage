@@ -1,74 +1,168 @@
-name: Collect configured public sources
+name: Review daily catalog and ranking update
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '47 2 * * *'
+    - cron: '17 2 * * *'
 
 permissions:
   contents: read
 
 concurrency:
-  group: modelspage-source-collection
+  group: modelspage-daily-review
   cancel-in-progress: false
 
 jobs:
   collect:
     if: github.repository == 'cogine-ai/modelspage' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     outputs:
-      propose: ${{ steps.policy.outputs.propose }}
+      clock: ${{ steps.clock.outputs.now }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.sha }}
+          path: trusted
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version-file: .bun-version
+          bun-version-file: trusted/.bun-version
       - run: bun install --frozen-lockfile --ignore-scripts
-      - name: Seed last reviewed snapshot
+        working-directory: trusted
+      - name: Fix the trusted Bun runtime configuration
         run: |
-          mkdir -p .sync
-          if [ -f cogine/data/openrouter.json ]; then
-            cp cogine/data/openrouter.json .sync/openrouter.json
-          fi
-      - name: Collect or report why the source is disabled
-        run: bun cogine/src/cli.ts collect
-      - name: Gate data proposal on reviewed source terms and complete changed input
-        id: policy
+          mkdir -p trusted/.sync/daily-runtime
+          printf '%s\n' '# No candidate preloads or runtime configuration.' > trusted/.sync/daily-runtime/bunfig.toml
+      - name: Fix the collection and review clock
+        id: clock
+        run: echo "now=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+      - name: Collect C/P with last-good inputs using only trusted code
+        working-directory: trusted
+        env:
+          COLLECTION_TIME: ${{ steps.clock.outputs.now }}
+          MODELSPAGE_AA_API_KEY: ${{ secrets.MODELSPAGE_AA_API_KEY }}
+          MODELSPAGE_OPENROUTER_API_KEY: ${{ secrets.MODELSPAGE_OPENROUTER_API_KEY }}
+          MODELSPAGE_INPUT_ENCRYPTION_KEY: ${{ secrets.MODELSPAGE_INPUT_ENCRYPTION_KEY }}
         run: |
-          # JavaScript template expressions must remain literal for Bun.
-          # shellcheck disable=SC2016
-          bun -e '
-            const config = await Bun.file("cogine/config/openrouter.json").json();
-            const file = Bun.file(".sync/openrouter.json");
-            const snapshot = await file.exists() ? await file.json() : null;
-            const allowed = config.enabled === true && config.usage.collection === "allowed" && config.usage.redistribution === "allowed" && snapshot?.source.complete === true && snapshot?.source.status === "success";
-            await Bun.write(process.env.GITHUB_OUTPUT, `propose=${allowed}\n`);
-          '
+          bun --no-env-file --config="$GITHUB_WORKSPACE/trusted/.sync/daily-runtime/bunfig.toml" \
+            "$GITHUB_WORKSPACE/trusted/cogine/src/cli.ts" collect-rankings \
+            --state-dir .sync/rankings --out-dir .sync/proposal --now "$COLLECTION_TIME"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: source-collection-review
+          name: daily-encrypted-collection
           path: |
-            .sync/openrouter.json
-            dist/reports/collection.json
+            trusted/.sync/proposal/rankings.json
+            trusted/.sync/proposal/collection.json
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 7
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: steps.policy.outputs.propose == 'true'
+
+  prepare:
+    needs: collect
+    permissions:
+      contents: read
+      actions: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      changed: ${{ steps.packet.outputs.changed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          name: reviewed-source-proposal
-          path: .sync/openrouter.json
+          ref: ${{ github.sha }}
+          path: trusted
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          path: candidate
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: trusted/.bun-version
+      - run: bun install --frozen-lockfile --ignore-scripts
+        working-directory: trusted
+      - name: Fix the trusted Bun runtime configuration
+        run: |
+          mkdir -p trusted/.sync/daily-runtime
+          printf '%s\n' '# No candidate preloads or runtime configuration.' > trusted/.sync/daily-runtime/bunfig.toml
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: daily-encrypted-collection
+          path: .sync/collection
+      - name: Set the candidate merge author
+        run: |
+          git -C candidate config user.name 'modelspage-daily[bot]'
+          git -C candidate config user.email 'modelspage-daily[bot]@users.noreply.github.com'
+      - name: Fix one merged catalog and encrypted ranking input
+        id: candidate
+        working-directory: trusted
+        env:
+          BASE_COMMIT: ${{ github.sha }}
+          PUBLICATION_TIME: ${{ needs.collect.outputs.clock }}
+        run: |
+          bun --no-env-file --config="$GITHUB_WORKSPACE/trusted/.sync/daily-runtime/bunfig.toml" \
+            "$GITHUB_WORKSPACE/trusted/cogine/scripts/daily-update.ts" prepare \
+            --candidate "$GITHUB_WORKSPACE/candidate" --base-commit "$BASE_COMMIT" \
+            --input "$GITHUB_WORKSPACE/.sync/collection/rankings.json" \
+            --packet-dir "$GITHUB_WORKSPACE/.sync/packet" --published-at "$PUBLICATION_TIME"
+      - name: Build and validate the entire fixed candidate using trusted code
+        id: build
+        if: steps.candidate.outputs.can_build == 'true'
+        continue-on-error: true
+        working-directory: trusted
+        env:
+          PUBLICATION_TIME: ${{ steps.candidate.outputs.published_at }}
+          MODELSPAGE_INPUT_ENCRYPTION_KEY: ${{ secrets.MODELSPAGE_INPUT_ENCRYPTION_KEY }}
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.sync/private-build"
+          if ! bun --no-env-file --config="$GITHUB_WORKSPACE/trusted/.sync/daily-runtime/bunfig.toml" \
+            "$GITHUB_WORKSPACE/trusted/cogine/src/cli.ts" build --root "$GITHUB_WORKSPACE/candidate" \
+            --published-at "$PUBLICATION_TIME" --sequence 1 \
+            --out-dir "$GITHUB_WORKSPACE/.sync/private-build" \
+            --rankings-input "$GITHUB_WORKSPACE/candidate/cogine/data/rankings.json" \
+            > "$GITHUB_WORKSPACE/.sync/private-build.log" 2>&1; then
+            echo 'Trusted candidate build failed; no plaintext build log is uploaded.'
+            exit 1
+          fi
+          if ! env -u MODELSPAGE_INPUT_ENCRYPTION_KEY bun --no-env-file --config="$GITHUB_WORKSPACE/trusted/.sync/daily-runtime/bunfig.toml" \
+            "$GITHUB_WORKSPACE/trusted/cogine/src/cli.ts" validate \
+            --input "$GITHUB_WORKSPACE/.sync/private-build" \
+            >> "$GITHUB_WORKSPACE/.sync/private-build.log" 2>&1; then
+            echo 'Candidate validation failed; no whole-bundle PASS is claimed.'
+            exit 1
+          fi
+      - name: Package only the exact Git proposal, ciphertext and safe review metadata
+        id: packet
+        working-directory: trusted
+        env:
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+        run: |
+          bun --no-env-file --config="$GITHUB_WORKSPACE/trusted/.sync/daily-runtime/bunfig.toml" \
+            "$GITHUB_WORKSPACE/trusted/cogine/scripts/daily-update.ts" package \
+            --candidate "$GITHUB_WORKSPACE/candidate" --packet-dir "$GITHUB_WORKSPACE/.sync/packet" \
+            --build-outcome "$BUILD_OUTCOME" --build-dir "$GITHUB_WORKSPACE/.sync/private-build" \
+            --collection-report "$GITHUB_WORKSPACE/.sync/collection/collection.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: daily-review-proposal
+          path: |
+            .sync/packet/proposal.bundle
+            .sync/packet/rankings.json
+            .sync/packet/plan.json
+            .sync/packet/review.json
           include-hidden-files: true
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7
 
   propose:
-    needs: collect
-    if: needs.collect.outputs.propose == 'true'
+    needs: prepare
+    if: needs.prepare.outputs.changed == 'true'
     permissions:
       contents: write
       pull-requests: write
@@ -77,42 +171,68 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version-file: .bun-version
+          ref: ${{ github.sha }}
+          fetch-depth: 0
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: reviewed-source-proposal
+          name: daily-review-proposal
           path: .sync/proposal
-      - name: Propose changed reviewed snapshot through PR
+      # No Bun, source credentials, input decryption or candidate code in this write-capable job.
+      - name: Propose one exact candidate without parallel review PRs or force pushes
         env:
           GH_TOKEN: ${{ github.token }}
+          BASE_COMMIT: ${{ github.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          mkdir -p cogine/data
-          cp .sync/proposal/openrouter.json cogine/data/openrouter.json
-          git add cogine/data/openrouter.json
-          if git diff --cached --quiet; then
+          set -euo pipefail
+          plan=.sync/proposal/plan.json
+          test "$(jq -er '.base_commit' "$plan")" = "$BASE_COMMIT"
+          candidate=$(jq -er '.candidate_commit | select(test("^[a-f0-9]{40}$"))' "$plan")
+          branch=$(jq -er '.branch | select(test("^automation/daily-[a-f0-9]{12}-[a-f0-9]{12}$"))' "$plan")
+          validation=$(jq -er '.validation | select(. == "validated" or . == "manual_upstream_review_required" or . == "build_failed")' "$plan")
+          input_hash=$(jq -er '.rankings_file_sha256 | select(test("^[a-f0-9]{64}$"))' "$plan")
+          git check-ref-format --branch "$DEFAULT_BRANCH"
+          git check-ref-format --branch "$branch"
+          current=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$DEFAULT_BRANCH" --jq '.object.sha')
+          if [ "$current" != "$BASE_COMMIT" ]; then
+            echo 'The default branch advanced; retained collection metadata and skipped a stale proposal.' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          git config user.name 'modelspage-collect[bot]'
-          git config user.email 'modelspage-collect[bot]@users.noreply.github.com'
-          digest=$(bun -e 'console.log((await Bun.file("cogine/data/openrouter.json").json()).source.sha256)')
-          base_commit=$(git rev-parse HEAD)
-          branch="automation/data-openrouter-${digest:0:12}-${base_commit:0:12}"
-          git check-ref-format --branch "$branch"
-          if ! git ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null; then
-            git commit -m 'chore(data): update reviewed OpenRouter public snapshot'
-            git push origin "HEAD:refs/heads/$branch"
+          pulls=$(gh api --paginate --slurp -X GET "repos/$GITHUB_REPOSITORY/pulls" -f state=open -f base="$DEFAULT_BRANCH" -f per_page=100)
+          blocking=$(jq --arg repo "$GITHUB_REPOSITORY" '[.[][] | select(.head.repo.full_name == $repo and (.head.ref | test("^automation/(daily-|upstream-|data-openrouter-)")))] | length' <<< "$pulls")
+          if [ "$blocking" != '0' ]; then
+            echo 'An automation review PR is still open; retained collection metadata and did not open or rewrite a second candidate.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
-          existing=$(gh pr list --head "$branch" --base "$DEFAULT_BRANCH" --state open --json number --jq 'length')
-          if [ "$existing" = '0' ]; then
-            body_file=$(mktemp)
-            cat > "$body_file" <<'BODY'
-          Updates a complete changed public snapshot from a source whose collection and redistribution terms were already reviewed in configuration.
-          Review identity scope, source coverage, anomalous deletions and source order before merging. Counts and data_as_of are never invented. This PR does not publish production data.
+          git -c core.hooksPath=/dev/null bundle verify .sync/proposal/proposal.bundle
+          git -c core.hooksPath=/dev/null fetch .sync/proposal/proposal.bundle HEAD
+          test "$(git rev-parse FETCH_HEAD)" = "$candidate"
+          git merge-base --is-ancestor "$BASE_COMMIT" "$candidate"
+          git diff --quiet "$BASE_COMMIT" "$candidate" -- .github/workflows README.md AGENTS.md
+          test "$(sha256sum .sync/proposal/rankings.json | cut -d ' ' -f 1)" = "$input_hash"
+          test "$(git show "$candidate:cogine/data/rankings.json" | sha256sum | cut -d ' ' -f 1)" = "$input_hash"
+          remote=$(git ls-remote --heads origin "refs/heads/$branch" | cut -f 1)
+          if [ -n "$remote" ] && [ "$remote" != "$candidate" ]; then
+            echo 'Existing proposal branch has different contents; refusing to overwrite it.' >&2
+            exit 1
+          fi
+          if [ -z "$remote" ]; then
+            git -c core.hooksPath=/dev/null push origin "$candidate:refs/heads/$branch"
+          fi
+          body_file=$(mktemp)
+          trap 'rm -f "$body_file"' EXIT
+          cat > "$body_file" <<BODY
+          Updates the models.dev catalog/N and the encrypted daily C/P input in one fixed candidate tree.
+
+          Base: $BASE_COMMIT
+          Candidate: $candidate
+          Validation: $validation
+          Encrypted input SHA-256: $input_hash
+
+          Review source coverage, source rights, identity associations and anomalous changes before merging. The encrypted cohort fixes its evaluation day; source observations keep their actual dates. Collection failures retain last-good inputs.
+          Only a validated candidate has a whole-bundle PASS. Parser/dependency changes or build failures require manual review; no new candidate code was executed with input/source keys.
+          This workflow does not publish or enable production. After merge, the existing reviewed-main production workflow and its C/P/N, rights and conditional-publication gates still apply.
           BODY
-            gh pr create --base "$DEFAULT_BRANCH" --head "$branch" --title 'chore(data): review OpenRouter snapshot' --body-file "$body_file"
-            rm "$body_file"
-          fi
+          gh pr create --draft --base "$DEFAULT_BRANCH" --head "$branch" --title 'chore(data): review daily model catalog and C/P update' --body-file "$body_file"
           gh workflow run modelspage-ci.yml --ref "$branch"

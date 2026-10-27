@@ -1,71 +1,27 @@
-name: Review upstream sync
+name: Request the unified daily review
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '17 2 * * *'
 
 permissions:
   contents: read
 
 concurrency:
-  group: modelspage-upstream-sync
+  group: modelspage-daily-review
   cancel-in-progress: false
 
 jobs:
-  propose:
-    permissions:
-      contents: write
-      pull-requests: write
-      actions: write
+  request:
     if: github.repository == 'cogine-ai/modelspage' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    permissions:
+      contents: read
+      actions: write
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version-file: .bun-version
-      - name: Set merge author
-        run: |
-          git config user.name 'modelspage-sync[bot]'
-          git config user.email 'modelspage-sync[bot]@users.noreply.github.com'
-      - name: Prepare reviewable merge with deployment quarantine
-        id: sync
-        run: |
-          base_commit=$(git rev-parse HEAD)
-          bun cogine/scripts/sync-upstream.ts --merge
-          if [ "$(git rev-parse HEAD)" = "$base_commit" ]; then
-            echo 'changed=false' >> "$GITHUB_OUTPUT"
-          else
-            upstream_commit=$(jq -er '.commit | select(type == "string" and test("^[a-f0-9]{40}$"))' cogine/upstream.lock.json)
-            echo 'changed=true' >> "$GITHUB_OUTPUT"
-            echo "branch=automation/upstream-${upstream_commit:0:12}-${base_commit:0:12}" >> "$GITHUB_OUTPUT"
-          fi
-      # Do not execute newly imported code in this write-capable job.
-      # The exact proposed branch is validated by the read-only CI dispatched below.
-      - name: Push exact merge and open review PR
-        if: steps.sync.outputs.changed == 'true'
+      - name: Dispatch the single daily collector and upstream proposal
         env:
           GH_TOKEN: ${{ github.token }}
-          REVIEW_BRANCH: ${{ steps.sync.outputs.branch }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          git check-ref-format --branch "$REVIEW_BRANCH"
-          if ! git ls-remote --exit-code --heads origin "refs/heads/$REVIEW_BRANCH" >/dev/null; then
-            git push origin "HEAD:refs/heads/$REVIEW_BRANCH"
-          fi
-          existing=$(gh pr list --head "$REVIEW_BRANCH" --base "$DEFAULT_BRANCH" --state open --json number --jq 'length')
-          if [ "$existing" = '0' ]; then
-            body_file=$(mktemp)
-            cat > "$body_file" <<'BODY'
-          Merges the discovered models.dev default branch and records its exact commit.
-          The branch preserves the complete upstream merge ancestry. Upstream entry-point docs and workflows are archived inertly; Modelspage executable workflows remain under local control.
-          Review source/catalog changes, dependencies, source terms and any anomalous deletions before merging. This workflow does not publish production data.
-          BODY
-            gh pr create --base "$DEFAULT_BRANCH" --head "$REVIEW_BRANCH" --title 'chore(upstream): review models.dev merge' --body-file "$body_file"
-            rm "$body_file"
-          fi
-          gh workflow run modelspage-ci.yml --ref "$REVIEW_BRANCH"
+          gh workflow run modelspage-collect.yml --ref "$DEFAULT_BRANCH"

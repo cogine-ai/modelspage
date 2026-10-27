@@ -4,6 +4,7 @@ import type { Bundle, Manifest } from "./types.js";
 import { assertCorrectionContinuity } from "./corrections.js";
 import { bundleRevision, sha256, stableStringify } from "./integrity.js";
 import { validateBundle, validateManifest } from "./schema.js";
+import { assertInitialCpnReadiness } from "./readiness.js";
 import { PreconditionFailed, type Metadata, type ObjectStore, type StoredObject } from "./store.js";
 
 export const JSON_TYPE = "application/json; charset=utf-8";
@@ -36,6 +37,12 @@ export function assertPublishable(bundle: Bundle) {
     const source = sources.get(fact.source_id);
     if (!source || source.usage.redistribution !== "allowed") throw new Error(`Publication rights unconfirmed for source ${fact.source_id}`);
     if (field === "popularity" && !source.complete) throw new Error("Incomplete popularity snapshots cannot be published");
+    if (field === "popularity" && model.popularity.state === "known" && model.popularity.value.weighted) {
+      for (const [id, evidence] of Object.entries(model.popularity.value.weighted.sources)) if (evidence.observed_days) {
+        if (sources.get(id)?.usage.redistribution !== "allowed") throw new Error(`Publication rights unconfirmed for popularity component ${id}`);
+        if (!sources.get(id)?.complete) throw new Error(`Incomplete popularity component ${id}`);
+      }
+    }
     if (field === "capability") {
       const profileId = model.capability.state === "known" ? model.capability.value.profile_id : "";
       const profile = bundle.metric_profiles.find(p => p.id === profileId);
@@ -57,6 +64,7 @@ export async function publishRelease(store: ObjectStore, release: Release, optio
   const targetSequence = checked.manifest.publication_sequence;
   // Reject stale input before uploading, then compare again within the CAS loop.
   let current = await store.get("v1/manifest.json");
+  if (!current && !options.allowFixture) assertInitialCpnReadiness(checked.bundle);
   function compare(object: StoredObject | null): "new" | "same" {
     if (!object) return "new";
     const active = validateManifest(JSON.parse(object.body));
@@ -73,6 +81,7 @@ export async function publishRelease(store: ObjectStore, release: Release, optio
     const activeObject = await store.get(activeManifest.objects.catalog.path);
     if (!activeObject) throw new Error("Active catalog is missing; repair before publishing");
     const active = verifyReleaseBytes(activeManifest, activeObject.body);
+    if (!options.allowFixture && active.bundle.fixture) throw new Error("An active fixture cannot seed production publication");
     const content = (bundle: Bundle) => {
       const { revision: _revision, publication_sequence: _sequence, published_at: _published, ...facts } = bundle;
       return stableStringify(facts);
@@ -95,6 +104,7 @@ export async function publishRelease(store: ObjectStore, release: Release, optio
   validateStored(immutable, checked.catalogBody, immutableMetadata);
   await options.verifyPublic?.(key, checked.catalogBody, immutableMetadata);
   for (let attempt = 0; attempt < 4; attempt++) {
+    if (!current && !options.allowFixture) assertInitialCpnReadiness(checked.bundle);
     const comparison = compare(current);
     if (comparison === "same") {
       validateStored(current!, manifestBody, manifestMetadata);
@@ -106,6 +116,7 @@ export async function publishRelease(store: ObjectStore, release: Release, optio
       const activeObject = await store.get(activeManifest.objects.catalog.path);
       if (!activeObject) throw new Error("Active catalog is missing; repair before publishing");
       const previous = verifyReleaseBytes(activeManifest, activeObject.body);
+      if (!options.allowFixture && previous.bundle.fixture) throw new Error("An active fixture cannot seed production publication");
       assertCorrectionContinuity(previous.bundle.corrections, checked.bundle.corrections);
     }
     try {

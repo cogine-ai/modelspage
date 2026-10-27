@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "artificial-analysis": {
+      "collection": "allowed",
+      "redistribution": "unverified",
+      "evidence": "https://artificialanalysis.ai/data-api/docs ; https://artificialanalysiscdn.com/legal/ProDataPlatformTerms.pdf (v1.1, 2026-08-19): internal research API use; public structured data and model-ranking/selection product use require specific written permission. No such permission is recorded here."
+    },
+    "openrouter": {
+      "collection": "allowed",
+      "redistribution": "allowed",
+      "evidence": "https://openrouter.ai/docs/cookbook/administration/data-api : rankings-daily dataset outputs licensed CC BY 4.0 with attribution. This grant is scoped to the dataset, not /models or the entire website."
+    },
+    "vercel-ai-gateway": {
+      "collection": "allowed",
+      "redistribution": "allowed",
+      "evidence": "https://vercel.com/changelog/open-data-and-shareable-charts-for-ai-gateway-leaderboards : public JSON/CSV CC BY 4.0; dataset payload license and attribution are retained by the adapter."
+    },
+    "opencode-go-free": {
+      "collection": "unverified",
+      "redistribution": "unverified",
+      "evidence": "https://opencode.ai/data methodology permits citation with source and update time; https://opencode.ai/legal/terms-of-service also contains extraction restrictions. Bulk machine-readable collection/redistribution permission is not established. Explicitly requested internal diagnostic collection only; no public grant is inferred from code license or public access."
+    }
+  }
+}

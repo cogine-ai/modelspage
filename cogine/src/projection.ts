@@ -1,5 +1,5 @@
 import { applyCorrections } from "./corrections.js";
-import { validCalendarDate } from "./schema.js";
+import { popularityCohortMatches, validCalendarDate } from "./schema.js";
 import { identityKey, unknown, type Bundle, type Fact, type Field, type Identity, type ModelFacts, type ReleaseDate } from "./types.js";
 
 export type MatchStatus = "matched" | "unmatched" | "ambiguous" | "conflict";
@@ -61,9 +61,11 @@ export function project<T extends AvailableModel>(available: readonly T[], bundl
   const providerOrder = options.provider_order ?? [...new Set(available.map(x => x.identity.provider))];
   const providerRank = new Map(providerOrder.map((provider, i) => [provider, i]));
   const sourceById = new Map(bundle.source_revisions.map(source => [source.id, source]));
-  const profile = bundle.metric_profiles.find(x => x.id === options.profile_id);
+  const profileId = options.profile_id ?? bundle.ranking_defaults?.capability_profile_id;
+  const popularitySourceId = options.popularity_source_id ?? bundle.ranking_defaults?.popularity_source_id;
+  const profile = bundle.metric_profiles.find(x => x.id === profileId);
   if (options.profile_id && !profile) throw new Error("Selected metric profile is absent");
-  if (profile && profile.usage.redistribution !== "allowed") throw new Error("Selected metric profile is not licensed for public distribution");
+  if (options.profile_id && profile && profile.usage.redistribution !== "allowed") throw new Error("Selected metric profile is not licensed for public distribution");
   const match = createMatcher(bundle);
   const models: ProjectedModel<T>[] = available.map(model => {
     const release = match(model.identity, "release");
@@ -72,29 +74,32 @@ export function project<T extends AvailableModel>(available: readonly T[], bundl
     return { ...model, public_facts: { release: release.fact, capability: capability.fact, popularity: popularity.fact }, match_status: { release: release.status, capability: capability.status, popularity: popularity.status } };
   });
   const dateKey = (model: ProjectedModel) => { const date = trustedRelease(model.public_facts.release, now); return date ? -Date.parse(date) : Number.POSITIVE_INFINITY; };
+  const availableRank = new Map(keys.map((key, index) => [key, index]));
   const tieKey = (model: ProjectedModel): (number | string)[] => [dateKey(model), providerRank.get(model.identity.provider) ?? Number.MAX_SAFE_INTEGER, identityKey(model.identity)];
-  const capabilityKey = (model: ProjectedModel): (number | string)[] => {
+  const capabilityMetricKey = (model: ProjectedModel): (number | string)[] => {
     const fact = model.public_facts.capability;
-    const usable = !!profile && fact.state === "known" && fact.value.profile_id === profile.id && fact.source_id === profile.source_id && fact.value.model_snapshot === profile.model_snapshot && fact.value.inference_config === profile.inference_config && sourceById.get(fact.source_id)?.usage.redistribution === "allowed";
-    return [usable ? 0 : 1, usable && fact.state === "known" ? fact.value.score * (profile!.direction === "higher" ? -1 : 1) : 0, ...tieKey(model)];
+    const usable = !!profile && profile.usage.redistribution === "allowed" && fact.state === "known" && fact.value.profile_id === profile.id && fact.source_id === profile.source_id && (profile.comparison_policy === "source-headline-v1" || fact.value.model_snapshot === profile.model_snapshot && fact.value.inference_config === profile.inference_config) && sourceById.get(fact.source_id)?.usage.redistribution === "allowed";
+    return [usable ? 0 : 1, usable && fact.state === "known" ? fact.value.score * (profile!.direction === "higher" ? -1 : 1) : 0];
   };
+  const capabilityKey = (model: ProjectedModel): (number | string)[] => [...capabilityMetricKey(model), ...tieKey(model)];
   const popularityKey = (model: ProjectedModel): (number | string)[] => {
     const fact = model.public_facts.popularity;
-    const usable = !!options.popularity_source_id && fact.state === "known" && fact.value.ranking_eligible && fact.value.source_id === options.popularity_source_id && fact.source_id === options.popularity_source_id && sourceById.get(fact.source_id)?.usage.redistribution === "allowed";
-    return [usable ? 0 : 1, usable && fact.state === "known" ? fact.value.position : 0, ...tieKey(model)];
+    const componentsAllowed = fact.state === "known" && (!fact.value.weighted || Object.entries(fact.value.weighted.sources).every(([id, evidence]) => !evidence.observed_days || sourceById.get(id)?.usage.redistribution === "allowed" && sourceById.get(id)?.complete));
+    const usable = !!popularitySourceId && fact.state === "known" && fact.value.ranking_eligible && fact.value.source_id === popularitySourceId && fact.source_id === popularitySourceId && sourceById.get(fact.source_id)?.usage.redistribution === "allowed" && sourceById.get(fact.source_id)?.complete && popularityCohortMatches(fact.value, sourceById.get(fact.source_id)) && componentsAllowed;
+    return [usable ? 0 : 1, usable && fact.state === "known" ? fact.value.weighted ? -fact.value.weighted.score : fact.value.position : 0, ...capabilityMetricKey(model), ...tieKey(model)];
   };
   const sortBy = (key: (model: ProjectedModel<T>) => (number | string)[]) => models.map(model => ({ model, key: key(model) })).sort((a, b) => compareTuple(a.key, b.key)).map(x => x.model);
   const capability = sortBy(capabilityKey);
   const popularity = sortBy(popularityKey);
-  const newest = sortBy(model => [dateKey(model), providerRank.get(model.identity.provider) ?? Number.MAX_SAFE_INTEGER, keys.indexOf(identityKey(model.identity)), identityKey(model.identity)]);
+  const newest = sortBy(model => [dateKey(model), providerRank.get(model.identity.provider) ?? Number.MAX_SAFE_INTEGER, availableRank.get(identityKey(model.identity))!, identityKey(model.identity)]);
   const capabilityEvidence = models.some(model => capabilityKey(model)[0] === 0);
   const popularityEvidence = models.some(model => popularityKey(model)[0] === 0);
   return {
     capability, popularity, newest,
     explanations: {
       capability: capabilityEvidence ? `能力优先；profile=${profile!.id}；${profile!.name}；${profile!.task}；${profile!.evaluation_conditions}` : "能力证据未知：没有已选且合法、可比较的 profile 证据。使用可信日期、Provider 展示次序、精确身份兜底；兜底不是能力结论。",
-      popularity: popularityEvidence ? `热度优先；source=${options.popularity_source_id}；仅该来源快照的明确映射顺序；不是全市场用户数。` : "热度证据未知：没有可用的同源、逐项覆盖明确的热度顺序。使用可信日期、Provider 展示次序、精确身份兜底；未上榜不等于零。",
-      newest: "首次公开发布的具体版本、可信日精度日期降序；未知日期置后，再按 Provider 展示次序、原目录位置、精确身份。",
+      popularity: popularityEvidence ? `热度优先；source=${popularitySourceId}；热度平局或未知项依次按可比较能力、可信日期及既定稳定次序兜底；不是全市场用户数。` : "热度证据未知：依次按可比较能力、可信日期及既定稳定次序兜底；兜底不产生热度事实，未上榜不等于零。",
+      newest: "按来源提供的模型发布日期（日精度）降序；models.dev 日期沿用上游维护结果。未知、未来及非日精度日期置后，再按 Provider 展示次序、原目录位置、精确身份。",
     },
   };
 }

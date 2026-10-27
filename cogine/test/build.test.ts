@@ -166,7 +166,7 @@ test("a reviewed replacement cannot bypass revoked current item coverage or fals
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("sparse publication excludes raw-unverified catalog rows, retains audit identities and never hides supplied metrics", async () => {
+test("sparse publication excludes unusable N facts, retains audit identities and never hides supplied metrics", async () => {
   const raw = (await Bun.file("cogine/fixtures/upstream.json").json()).facts as ModelFacts[];
   expect(sparsePublicFacts(raw, [], [], "2026-10-26T00:00:00Z")).toHaveLength(3);
   const monthly = raw.find((fact) => fact.identity.request_model_id === "model-month")!;

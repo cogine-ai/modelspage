@@ -3,7 +3,7 @@ import { validateBundle, validateManifest } from "./schema.js";
 import { type Bundle, type Manifest } from "./types.js";
 import { assertCorrectionContinuity } from "./corrections.js";
 
-export const CONSUMER_VERSION = "1.0.0";
+export const CONSUMER_VERSION = "2.0.0";
 export type VerifiedRelease = { manifest: Manifest; bundle: Bundle; catalog: string };
 export type ReadObject = (path: string) => Promise<Uint8Array | string>;
 function compatible(version: string) {

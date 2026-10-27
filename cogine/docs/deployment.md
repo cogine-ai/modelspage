@@ -1,6 +1,18 @@
 # R2 分发、失败恢复与回退
 
-生产分发实现位于 [`store.ts`](../src/store.ts) 和 [`publish.ts`](../src/publish.ts)。目前没有真实域名、独立桶或凭据，默认 `MODELSPAGE_PUBLISH_ENABLED=false`；本手册是可执行配置步骤，不表示生产已经部署。
+生产分发实现位于 [`store.ts`](../src/store.ts) 和 [`publish.ts`](../src/publish.ts)。2026-10-26 已使用本地 Wrangler 在账户 `a11312197b2f8ff3e535b8c2f4ac9b22` 创建专用 `modelspage-production` 桶，并通过 Cloudflare API 读回确认。桶为 Standard/APAC，无自定义域名，r2.dev 访问关闭，没有发布目录或 manifest。当前登录未列出可用 zone，正式域名待补充；专桶 S3 凭据和公开读取尚未验收。默认 `MODELSPAGE_PUBLISH_ENABLED=false`，服务尚未上线。
+
+首发决策：主要 Provider 和模型的 C/P/N 应有广泛覆盖后再上线；范围和来源选择记录在[约束审计](2026-10-26-constraints-review.md)。不能把每类仅一条事实当成业务覆盖验收完成。
+
+审核 PR 合并到 main 后，workflow 通过只读 GitHub API 核实 exact merge commit 及当前 main SHA，再执行已启用的 production 发布；保留手动重试。它从已验证的当前 manifest 自动派生下一发布序号，以可信提交时间形成固定构建时钟，无需每次人工填序号和时钟。开关关闭时不会写入生产；已有有效版本后的纠错和撤回仍可发布。
+
+## DNS 交付安排
+
+DNS 由用户在现有 DNS 平台手动配置，统一留到部署准备的最后一步交付，不分批要求用户修改。先完成可独立推进的应用、数据和云端配置，再提供一张完整记录表：域名、DNS 管理平台、记录类型、主机名、实际目标值、TTL、代理状态和验证方式。记录值必须来自平台实际分配和确认，未取得的值明确标为待生成，不把示例或 r2.dev 地址当正式目标。
+
+候选入口为 `models.cogine.ai`（Spaceship）、`models.cogine.app`（Vercel）及 `models.cogineai.com`（当前 NS 查询为 DNSPod）。建议一个正式数据源，其他入口共用该版本或重定向。最终清单需覆盖实际选用的入口及所有权/证书验证记录；如接入方式涉及 nameserver 变更，应单独列出其范围，不能混作普通 CNAME。用户完成 DNS 后再执行公开路径、证书及缓存验收，在此之前这些检查保持未执行状态。
+
+当前 R2 自定义域名要求 zone 位于桶所在 Cloudflare 账户；保留外部权威 DNS 的 partial setup 需要 Business 或 Enterprise，接入方式尚未落实。不能假定在三个现有 DNS 平台分别添加一条 CNAME 就已满足该要求。参见 [R2 自定义域名](https://developers.cloudflare.com/r2/buckets/public-buckets/#add-your-domain-to-cloudflare) 和 [partial setup](https://developers.cloudflare.com/dns/zone-setups/partial-setup/)。本轮没有迁移 DNS、开通付费计划或发布生产数据。
 
 ## 本地模拟
 
@@ -61,3 +73,7 @@ bun run rollback --input dist/previous-verified-release --sequence 3 --published
 撤回在 corrections 配置中提交明确记录及审核依据，通过 PR 后发布更高序号。客户端在正常后台检查周期内收到；不能承诺立即撤回全部离线缓存。
 
 同环境 GitHub workflow 用 concurrency 串行；R2 的条件写及序号比较仍负责阻止旧构建、外部发布器或并发工作流覆盖新版本。
+
+## 每日加密排名输入
+
+当前 reviewed-main build 需要 `MODELSPAGE_INPUT_ENCRYPTION_KEY` 解密同 commit 的 `cogine/data/rankings.json`，只在可信 build 步骤注入；AA/OpenRouter API key 仅每日采集使用，发布不重新联网采样。未通过许可/首发检查的明文候选不能作为 Actions artifact 上传，公开生产 artifact 仅在成功发布后上传。三个项目专用 repository secrets 已配置；R2 写凭据与生产开关继续沿用单独的 production 环境。新配置不启用外网发布或修改 DNS。见[每日流程](2026-10-27-daily-cpn-integration.md)。

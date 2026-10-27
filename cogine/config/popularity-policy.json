@@ -1,0 +1,10 @@
+{
+  "id": "observed-weighted-token-share-v1",
+  "weights_status": "accepted",
+  "window_days": 7,
+  "weights": {
+    "openrouter": 0.6,
+    "vercel-ai-gateway": 0.3,
+    "opencode-go-free": 0.1
+  }
+}

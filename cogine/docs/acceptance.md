@@ -2,6 +2,8 @@
 
 任务日期：2026-10-26（Asia/Singapore）。本文件记录实际工程证据；长期规则在根 AGENTS.md。
 
+本文件以下内容是首次实现及 PR #1 审核期间的历史记录。PR #1 后来已合并；旧的 N 人工核验门槛及“仅三条有效 N”结论已由用户纠正。后续修正、验证环境、未完成部署与约束问题见 [2026-10-26 约束审计](2026-10-26-constraints-review.md)，不要将历史限制当成当前需求。
+
 ## 仓库与输入
 
 - 工作目录：`/Users/damonalbarn/Work/OrgRepos/ModelsPage`，独立于 CogineWork，没有 submodule。
@@ -77,7 +79,7 @@
 
 真实固定上游构建再次通过，revision 仍为 `eb35bf41fb43a43bfb3f256aa84c90591dba9bd61708a5770ff379a139359fff`，覆盖和生产限制没有改变。fixture revision 仍为 `554d027ab6af6b27d763e63ee660a423904d4afbaac41d563a34875f8bd20255`；重复 dry-run 分别返回 published、unchanged。原来的 queued 运行不作为通过证据；被 concurrency 取消的重复运行也不计入失败或 PASS。
 
-Actions 的自动创建 PR 权限仍由组织关闭。它不影响本次只读 PR CI；将来启用每日上游/数据 PR 时需另行授权配置，不能通过提高 token 声明来绕过组织策略。真实 R2 认证、CDN、生产发布与模型推理均未执行。
+当时 Actions 的自动创建 PR 权限由组织关闭，不影响上述只读 PR CI。2026-10-27 用户已在组织与仓库设置中勾选并保存自动创建 PR 权限，两个 `/actions/permissions/workflow` 接口均读回 `can_approve_pull_request_reviews=true`；默认 token 权限仍为 read，无需提高默认权限。该阻塞已经解除；真实自动提案流程另行验收，不能用权限配置成功代替运行成功。真实 R2 认证、CDN、生产发布与模型推理均未执行。
 
 ## 上游额外测试的失败与限制
 
@@ -98,3 +100,7 @@ Actions 的自动创建 PR 权限仍由组织关闭。它不影响本次只读 P
 C 只有 profile 合同和接入位置，生产能力事实未知；Artificial Analysis 的生产用途未确认，不发布其数据。P 的公共接口探测结果见 [来源核实记录](source-verification.md) 和 [机器报告](openrouter-probe.json)，但使用条件和逐项覆盖尚未确认，生产关闭。N 仅采用明确审核的三个 Anthropic 4.5 具体版本日期，其余保留原精度与未验证状态。当前固定目录真实构建得到 230 Provider、11,960 个带协议作用范围的身份；N 有效3项、C/P有效0项。这是公开目录覆盖，不代表 CogineWork 账户可用性。以真实构建覆盖矩阵和来源报告为准。
 
 生产仍需真实自定义域名、独立 R2 桶、目标桶限定 Secret、Cache Rules/CORS（若适用）、GitHub production environment/变量，以及每个来源对应采集与公开分发的用途确认。没有这些条件不会阻塞离线工程闭环，也不宣称服务已上线。
+
+## 2026-10-27 每日 C/P 集成补验
+
+每日 C/P 已与模型目录/N构建同一固定审核版本，使用加密输入保留未公开数据；旧缓存与未改事实不伪刷新。详见 [每日集成及完整覆盖](2026-10-27-daily-cpn-integration.md)。本轮 179 tests / 1,133 assertions、类型与schema检查通过；39 Provider/2,217行全盘及与每日纯投影逐条比对通过。真实内部生产候选 C6,733/P3,304/N11,855（协议身份计数），本地发布模拟 published→unchanged；外网部署未执行，公开许可检查仍拒绝未授权来源。新定时workflow需要PR2合并后才生效，未声称实际定时或自动发布已运行。

@@ -20,6 +20,11 @@ describe("public data contract", () => {
     }
     const incompatible = await Bun.file(root + "invalid-schema-version.json").json();
     expect(() => validateManifest(incompatible)).toThrow();
+    const modern = await Bun.file(root + "valid-catalog-v2.json").text();
+    const modernManifest = await Bun.file(root + "valid-manifest-v2.json").json();
+    expect(verifyReleaseBytes(modernManifest, modern).bundle.schema_version).toBe(2);
+    const awaitedInvalid = await Bun.file(root + "invalid-weighted-evidence-v2.json").json();
+    expect(() => validateBundle(awaitedInvalid)).toThrow();
   });
   test("strict schema preserves explicit unknown, conflict and withdrawal states", () => {
     const correction = { id: "withdraw", identity: identity(), field: "release" as const, action: "withdraw" as const, reason: "Wrong date", evidence: "Review", reviewed_by: "maintainer", reviewed_at: timestamp, sequence: 1 };

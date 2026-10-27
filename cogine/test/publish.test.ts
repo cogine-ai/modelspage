@@ -6,7 +6,7 @@ import { applyCorrections } from "../src/corrections.js";
 import { bundleRevision, sha256, stableStringify } from "../src/integrity.js";
 import { JSON_TYPE, MANIFEST_CACHE, publishRelease, publicVerifier, readRelease, REVISION_CACHE, rollbackRelease, verifyReleaseBytes, type Release } from "../src/publish.js";
 import { configuredR2Store, DirectoryStore, MemoryStore, PreconditionFailed, R2Store, type Condition, type Metadata } from "../src/store.js";
-import { bundle, identity, popularity, seal, timestamp } from "./contract-fixture.js";
+import { bundle, capability, identity, model, popularity, seal, timestamp } from "./contract-fixture.js";
 
 function fixture(sequence = 1): Release {
   const sealed = seal(bundle({ publication_sequence: sequence, builder_version: `test-build-${sequence}` }));
@@ -123,6 +123,31 @@ describe("immutable publication and CAS manifest", () => {
     partialInput.source_revisions[0]!.status = "partial";
     const partial = seal(partialInput);
     await expect(publishRelease(new MemoryStore(), { ...partial, catalogBody: partial.catalog })).rejects.toThrow("Incomplete");
+  });
+  test("direct production publication cannot bypass initial C/P/N readiness, but permits later withdrawal", async () => {
+    const store = new MemoryStore();
+    const missing = seal(bundle({ fixture: false }));
+    await expect(publishRelease(store, { ...missing, catalogBody: missing.catalog })).rejects.toThrow("Initial production");
+    expect(store.writes).toHaveLength(0);
+    const input = bundle({ fixture: false, facts: [model("model-v1", { capability: capability(90), popularity: popularity(1) })] });
+    const first = seal(input);
+    await publishRelease(store, { ...first, catalogBody: first.catalog });
+    input.publication_sequence = 2;
+    input.corrections = [{ id: "remove-capability", identity: identity(), field: "capability", action: "withdraw", sequence: 1, reason: "Evidence withdrawn", evidence: "Synthetic review", reviewed_by: "test", reviewed_at: timestamp }];
+    input.facts = applyCorrections(input.facts, input.corrections);
+    const withdrawn = seal(input);
+    expect((await publishRelease(store, { ...withdrawn, catalogBody: withdrawn.catalog })).status).toBe("published");
+  });
+  test("a CAS retry that observes a removed manifest must recheck the initial C/P/N gate", async () => {
+    const store = new MemoryStore();
+    const first = seal(bundle({ fixture: false, facts: [model("model-v1", { capability: capability(90), popularity: popularity(1) })] }));
+    await publishRelease(store, { ...first, catalogBody: first.catalog });
+    const next = seal(bundle({ fixture: false, publication_sequence: 2 }));
+    await expect(publishRelease(store, { ...next, catalogBody: next.catalog }, { verifyPublic: async key => {
+      if (key !== "v1/manifest.json") store.objects.delete("v1/manifest.json");
+    } })).rejects.toThrow("Initial production");
+    expect(await store.get("v1/manifest.json")).toBeNull();
+    expect(store.writes.filter(write => write.key === "v1/manifest.json")).toHaveLength(1);
   });
   test("persisted dry-run store enforces CAS across store instances", async () => {
     const directory = await mkdtemp(join(tmpdir(), "modelspage-store-")); directories.push(directory);
