@@ -25,8 +25,9 @@ AA 的通用条款并非一概禁止外部引用：§2.3 允许署名的图表�
 - 已上传 1,220 个文件及自有 Worker。公开排名 revision `bf433662bb7e0b339cba6c4a35d4bef259abb71ce76d182dcaea5168069f141f`，614 模型，C199/P54/N612。P 仍为 UTC 2026-10-20～26；网站上线不冒充新观测。
 - 公开 HTML、排名 JSON/schema、原三 API、multi-type 过滤、model-schema、实验 v2、MIT、AA Logo、分享 PNG 均公网 HTTP 200；只读跨域预检 204；未知页面404。真实浏览器已打开公网排名并加载图表。
 - R2 `PUBLIC_DATA` binding 已配置，桶仍为空，`/v1/manifest.json` 实测 404，不将它冒充已发布。
-- 204 tests /1,372 assertions 通过；两套类型检查、原 schema 与新增 schema 检查、目录 validate 及 v1 byte-identical 检查通过。完整站点的公开准入在构建时执行，不上传 local-preview 候选。
-- Cloudflare Git 来源已连接 main，生产构建 secret 已配置（只记录名称）；自动部署开关将在本轮代码接入 main 后启用和验收。预览分支不获得生产秘密。
+- 205 tests /1,375 assertions 通过；两套类型检查、原 schema 与新增 schema 检查、目录 validate 及 v1 byte-identical 检查通过。PR #4 的完整 GitHub CI 也已通过。完整站点的公开准入在构建时执行，不上传 local-preview 候选。
+- 代码重建与当前公网 JSON 已逐字节对比：事实不变时，保留现有 revision、published_at 与 evaluated_at；真正事实变更才生成新版本。浅克隆构建会显式获取固定上游 commit，不依赖本机 Git 对象缓存。
+- Cloudflare Git 来源已连接 main，生产构建 secret 已配置（只记录名称），主分支自动部署开关已开启，预览部署关闭。合并后的真实构建结果另以平台 deployment 记录及公网回读验收；开关本身不当作自动发布成功。
 
 首次 CLI 上传在配置校验阶段发现 Pages 不接受 `account_id` 字段，已移除并使用调用时 `CLOUDFLARE_ACCOUNT_ID` 明确账户；该次未部署。Worker compatibility date 固定为 2026-10-01，避免把台北当前日当成平台 UTC 的未来日期。没有迁移任何 nameserver。
 
