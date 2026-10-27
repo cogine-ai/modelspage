@@ -11,12 +11,14 @@ Modelspage 发布公共模型资料、经过核验的身份关联和 C/P/N 排�
 | 上游资料 | 复用上游 v2 生成器；固定输入 commit 和树 hash，不下载 models.dev API 快照冒充同版本 |
 | N / 新 | 直接信任固定 models.dev 版本及原解析器解析的 release_date，不设本地逐项人工审核白名单；保留原精度，已经发生的日精度日期参与排序 |
 | P / 多 | 已接入每日 OpenRouter / Vercel / Go-Free 观测，按 60/30/10 固定权重累加并集；逐日缺失保留 null，P → C → N → 稳定次序兜底；公开发布仍受来源授权检查 |
-| C / 好 | AA Intelligence Index 已接入每日采集和构建，使用同版本唯一 source headline，保留实际模型/effort及全部候选；AA 默认套餐不授予本项目公开 JSON/选模产品用途，发布仍关闭 |
+| C / 好 | AA Intelligence Index 已接入每日采集和构建，使用同版本唯一 source headline，保留实际模型/effort及全部候选；项目所有者已确认 AA/OpenCode 的公开排名和 JSON 授权范围，来源标注继续保留 |
 | 消费端 | 纯匹配/投影及缓存参考实现、正反例和测试；没有修改 CogineWork |
-| 发布 | 已实现 R2 S3 条件发布、远端/公开路径校验、无凭据持久化 dry-run、回退；审核 PR 合并后触发发布，保留手动重试；真实生产默认关闭 |
-| 生产环境 | 已通过本地 Wrangler 创建专用 modelspage-production 桶并读回确认；自定义域名、专桶 S3 Secret 和公开分发尚未配置/验收 |
+| 发布 | 网站使用独立 Pages 公网部署；版本化 R2 数据保留原条件发布、回退及合并 PR 触发流程，该数据渠道的开关默认关闭 |
+| 生产环境 | 网站及 `/rankings.json` 已部署至 [modelspage.pages.dev](https://modelspage.pages.dev/)；三个正式子域名等待用户配置 DNS。专用 R2 桶保留，版本化 `/v1/` 数据发布仍单独管理 |
 
 具体命令与验收证据见 [验收记录](cogine/docs/acceptance.md)，字段和 Provider 覆盖以每次构建生成的报告为准。
+
+Web 直接复用固定的 models.dev 网站源码，保留原 Models、Providers、Labs 及详情、搜索、排序和原 JSON API，另外增加独立 [Rankings](https://modelspage.pages.dev/rankings/) 与 [Data](https://modelspage.pages.dev/data/) 页面。[公网部署与 DNS](cogine/docs/2026-10-28-public-deployment.md)记录了实际验证；[Web 运行方式](cogine/web/README.md)保留本地开发命令。
 
 每日目录/N与C/P现已合并为一个固定输入审核流程，见[每日集成及本轮全盘验证](cogine/docs/2026-10-27-daily-cpn-integration.md)。已提交的 C/P 输入是加密快照，正式 builder 可解密并与模型目录/N构建同一版本；诊断与 builder 共用身份关联、AA headline 和加权计算。不会修改客户端可用成员。
 
@@ -38,7 +40,7 @@ bun cogine/src/cli.ts validate --input dist/daily-candidate
 
 已审核输入默认是 `cogine/data/rankings.json`，仅含认证加密内容和来源状态/数量/hash。每日候选固定 C/P 的 UTC 评估日，合并日期改变不会重算成另一窗口。旧 `collect` 命令仅保留 OpenRouter legacy 兼容；新流程使用 `collect-rankings`。
 
-公开许可检查仍生效：加密仅保护未公开的审核输入，不授予数据使用或再分发权。AA / OpenCode 授权、广泛覆盖及生产配置未落实前不启用上线。
+公开许可检查仍生效：加密本身不授予数据使用或再分发权。项目所有者已确认 AA / OpenCode 的公开排名／JSON 范围，依据及公网验证见[部署记录](cogine/docs/2026-10-28-public-deployment.md)。
 
 ## 数据流程与职责
 
@@ -139,6 +141,6 @@ bun run v1:check <同步前固定的上游commit>
 
 脚本保存上游 entry-point 文档/workflows 的惰性归档、保留本项目入口和活动 workflows、记录上游 commit；其他冲突保留 merge 状态并失败，按 [维护手册](cogine/docs/maintenance.md) 解决。不得直接用上游生产部署命令或覆盖 `cogine/`。新来源、身份映射、方法版本、重大纠错和异常删除均通过 PR 审阅。
 
-[`.github/workflows/`](.github/workflows/) 提供：PR/主分支验证、手动/每日上游同步 PR、手动/每日来源采集，以及审核 PR 合并到 main 后的生产发布。发布前只读任务核实当前 SHA 确实属于已合并 PR；保留 main 上手动重试，发布序号与固定时钟自动派生。PR 使用只读权限、无生产秘密；生产发布按环境串行并拒绝旧序号。采集产出审核工件；仅当已审查的配置同时允许采集和再分发、且获得完整变化快照时，才由独立最小权限任务创建数据审核 PR。采集本身不发布，未授权、未修改、失败和部分响应不会生成数据 PR。首发必须等主要 Provider/模型的 C/P/N 广泛覆盖达标；代码的三类非空检查只是最低条件，生产开关仍关闭。调度频率不是上游新鲜度 SLA。
+[`.github/workflows/`](.github/workflows/) 提供：PR/主分支验证、手动/每日上游同步 PR、手动/每日来源采集，以及审核 PR 合并到 main 后的生产发布。发布前只读任务核实当前 SHA 确实属于已合并 PR；保留 main 上手动重试，发布序号与固定时钟自动派生。PR 使用只读权限、无生产秘密；生产发布按环境串行并拒绝旧序号。采集产出审核工件；仅当已审查的配置同时允许采集和再分发、且获得完整变化快照时，才由独立最小权限任务创建数据审核 PR。采集本身不发布，未授权、未修改、失败和部分响应不会生成数据 PR。首发必须等主要 Provider/模型的 C/P/N 广泛覆盖达标；代码的三类非空检查只是最低条件；这里的开关指版本化 R2 数据渠道，Pages 网站部署独立管理。调度频率不是上游新鲜度 SLA。
 
 覆盖矩阵由构建生成：按真实上游 Provider inventory 列出字段支持、未覆盖、需认证、无公开来源和未验证，不引用历史“39 家”。输出为 `dist/<输出目录>/reports/coverage.json`、`coverage.md` 和 `sources.json`（默认真实构建为 `dist/public/reports/`），数据许可和真实探测见 [来源核实记录](cogine/docs/source-verification.md) 与 [验收记录](cogine/docs/acceptance.md)。

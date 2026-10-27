@@ -1,0 +1,146 @@
+/* Only the additional pages use these classes; original catalog styles stay upstream. */
+.ranking-page {
+  --ranking-ink: #666966;
+  --ranking-grid: color-mix(in srgb, var(--color-text) 8%, transparent);
+  width: min(1200px, 100%);
+  margin: 0 auto;
+  padding: 36px 36px 24px;
+}
+.ranking-heading { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 26px; }
+.ranking-heading h2 { font-size: 28px; font-weight: 500; letter-spacing: -.8px; line-height: 1.2; }
+.ranking-download { font-family: var(--font-mono); font-size: 12px; color: var(--color-text-secondary); }
+.ranking-toolbar { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 18px; }
+.ranking-segment { display: flex; align-items: center; border: 1px solid var(--color-border); border-radius: 6px; padding: 3px; gap: 3px; }
+.ranking-segment button { border: 0; border-radius: 3px; background: transparent; color: var(--color-text-secondary); padding: 7px 14px; font-size: 13px; cursor: pointer; }
+.ranking-segment button[aria-pressed="true"] { background: var(--color-text); color: var(--color-background); }
+.ranking-segment button:hover { background: var(--color-surface); color: var(--color-text); }
+.ranking-segment button[aria-pressed="true"]:hover { background: var(--color-text); color: var(--color-background); }
+.ranking-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-bottom: 25px; border-bottom: 1px solid var(--color-border); }
+.ranking-filters input, .ranking-filters select { color: var(--color-text); background: var(--color-background); border: 1px solid var(--color-border); border-radius: 4px; font: inherit; font-size: 12px; padding: 8px 10px; height: 35px; min-width: 0; }
+.ranking-filters input { width: 240px; }
+.ranking-filters select { width: 150px; }
+#ranking-count { margin-left: auto; font-size: 11px; color: var(--color-text-secondary); font-family: var(--font-mono); }
+.ranking-chart-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; padding: 25px 0 25px; }
+.ranking-chart-heading h3 { font-size: 16px; font-weight: 500; }
+#ranking-context { color: var(--color-text-secondary); font-family: var(--font-mono); font-size: 10px; }
+.ranking-model-link { display: flex; align-items: center; gap: 10px; text-decoration: none; font-size: 12px; font-weight: 450; min-width: 0; line-height: 1.4; }
+.ranking-model-link img { flex-shrink: 0; filter: var(--logo-image-filter); object-fit: contain; }
+.ranking-model-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ranking-model-link:hover span { text-decoration: underline; text-underline-offset: 3px; }
+.ranking-axis { display: grid; grid-template-columns: 270px 1fr; height: 28px; padding-right: 60px; color: var(--color-text-secondary); font-family: var(--font-mono); font-size: 10px; }
+.ranking-axis > div { position: relative; }
+.ranking-axis > div span { position: absolute; transform: translateX(-50%); }
+.ranking-bar-row { display: grid; grid-template-columns: 270px 1fr; align-items: center; min-height: 48px; border-bottom: 1px solid var(--ranking-grid); }
+.ranking-bar-row > a { padding-right: 22px; }
+.ranking-bar-track { display: flex; align-items: center; position: relative; width: calc(100% - 60px); height: 48px; background: repeating-linear-gradient(to right, var(--ranking-grid) 0, var(--ranking-grid) 1px, transparent 1px, transparent 25%); color: var(--color-text); border: 0; border-radius: 0; text-align: left; cursor: pointer; }
+.ranking-bar { display: block; flex-shrink: 0; height: 20px; background: var(--ranking-ink); border-radius: 0 3px 3px 0; }
+.ranking-bar-value { position: absolute; font-family: var(--font-mono); font-size: 11px; padding-left: 10px; font-variant-numeric: tabular-nums; }
+.ranking-bar-track:hover .ranking-bar, .ranking-bar-track:focus-visible .ranking-bar { background: var(--color-brand); }
+.ranking-no-data { font-family: var(--font-mono); color: var(--color-text-tertiary); padding-left: 10px; }
+.ranking-empty { padding: 60px 0; text-align: center; color: var(--color-text-secondary); font-size: 13px; }
+#ranking-more { display: block; margin: 24px auto; background: transparent; color: var(--color-text); border: 1px solid var(--color-border); border-radius: 4px; padding: 8px 20px; font-size: 12px; cursor: pointer; }
+#ranking-more[hidden] { display: none; }
+.ranking-footer { display: flex; gap: 20px; justify-content: space-between; margin-top: 32px; padding-top: 18px; border-top: 1px solid var(--color-border); font-size: 11px; color: var(--color-text-secondary); }
+.ranking-footer > a { margin-left: auto; }
+.data-license { margin-top: 24px; color: var(--color-text-secondary); font-size: 11px; }
+#modal .footer, #modal .footer a { font-size: 11px; color: var(--color-text-secondary); }
+.aa-credit { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.aa-credit img { flex: 0 0 auto; }
+.data-attribution { margin-top: 22px; font-size: 11px; color: var(--color-text-secondary); }
+.data-attribution summary { cursor: pointer; }
+.data-attribution p { padding: 7px 0; overflow-wrap: anywhere; }
+.ranking-timeline-row { display: grid; grid-template-columns: 110px 26px 1fr 100px; align-items: center; min-height: 54px; }
+.ranking-date { padding: 0; text-align: left; color: var(--color-text-secondary); font: 11px var(--font-mono); cursor: pointer; border: 0; background: transparent; }
+.ranking-timeline-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ranking-ink); position: relative; }
+.ranking-timeline-dot::after { content: ""; position: absolute; top: 7px; height: 47px; width: 1px; left: 3px; background: var(--color-border); }
+.ranking-timeline-row:last-child .ranking-timeline-dot::after { display: none; }
+.ranking-lab-label { color: var(--color-text-secondary); font-size: 11px; text-align: right; }
+.ranking-table-wrap { overflow: auto; }
+table.ranking-table { min-width: 740px; width: 100%; border-collapse: collapse; font-size: 12px; }
+table.ranking-table th { position: static; background: var(--color-background); font-weight: 450; text-align: right; color: var(--color-text-secondary); padding: 0 12px 14px; }
+table.ranking-table th:first-child, table.ranking-table td:first-child { text-align: left; padding-left: 0; }
+table.ranking-table td { border-top: 1px solid var(--color-border); padding: 15px 12px; text-align: right; font: 11px var(--font-mono); }
+.ranking-table th small { display: block; font-size: 9px; font-weight: 400; color: var(--color-text-secondary); }
+.ranking-table th a { font-size: 9px; }
+.ranking-table td button { border: 0; border-bottom: 1px dotted var(--color-border); background: transparent; color: var(--color-text); padding: 0; font: inherit; cursor: pointer; }
+.ranking-price { white-space: nowrap; }
+.ranking-scatter svg { display: block; width: 100%; overflow: visible; }
+.ranking-scatter-grid line { stroke: var(--ranking-grid); stroke-width: 1; }
+.ranking-scatter-grid text, .ranking-axis-label { fill: var(--color-text-secondary); font: 11px var(--font-mono); }
+.ranking-point { cursor: pointer; }
+.ranking-point circle { fill: var(--ranking-ink); stroke: var(--color-background); stroke-width: 1; }
+.ranking-point text { fill: var(--color-text); font-size: 11px; }
+.ranking-point:hover circle, .ranking-point:focus circle { fill: var(--color-brand); r: 7; }
+.ranking-scatter-count { display: block; text-align: right; color: var(--color-text-secondary); font: 10px var(--font-mono); }
+dialog.ranking-detail { position: fixed; inset: 0; width: min(620px, calc(100% - 24px)); max-height: calc(100dvh - 48px); margin: auto; padding: 28px; overflow: auto; background: var(--color-background); color: var(--color-text); border: 1px solid var(--color-border); border-radius: 8px; }
+.ranking-detail::backdrop { background: #0006; backdrop-filter: blur(2px); }
+.ranking-detail h2 { font-size: 22px; font-weight: 500; margin-bottom: 8px; padding-right: 25px; }
+.ranking-detail h3 { font-size: 13px; font-weight: 500; padding: 22px 0 12px; }
+.ranking-detail h3 a, #ranking-detail-body > a { font-size: 11px; }
+.ranking-facts { display: flex; justify-content: space-between; gap: 12px; padding: 26px 0; border-bottom: 1px solid var(--color-border); }
+.ranking-facts dt { color: var(--color-text-secondary); font-size: 11px; }
+.ranking-facts dd { font: 19px var(--font-mono); margin-top: 6px; }
+.ranking-source-facts { display: grid; grid-template-columns: 100px 1fr; gap: 8px 12px; font-size: 11px; }
+.ranking-source-facts dt { color: var(--color-text-secondary); }
+.ranking-source-facts dd { overflow-wrap: anywhere; }
+.ranking-detail .ranking-source-table { width: 100%; min-width: 0; font-size: 11px; border-collapse: collapse; }
+.ranking-source-table th, .ranking-source-table td { text-align: right; padding: 9px 5px; border-bottom: 1px solid var(--color-border); }
+.ranking-source-table th:first-child, .ranking-source-table td:first-child { text-align: left; }
+.ranking-status { color: var(--color-text-secondary); font: 10px var(--font-mono); margin-top: 12px; }
+.ranking-detail-price { font: 14px var(--font-mono); }
+.ranking-detail-price small { display: block; margin-top: 5px; font-size: 10px; color: var(--color-text-secondary); }
+#ranking-detail-close { position: absolute; top: 15px; right: 15px; width: 28px; height: 28px; padding: 0; background: transparent; color: var(--color-text-secondary); border: 0; border-radius: 4px; font-size: 24px; line-height: 1; cursor: pointer; }
+.dataset-list article { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; padding: 28px 0; border-top: 1px solid var(--color-border); }
+.dataset-list article > div { flex: 1 1 200px; }
+.dataset-list h3 { font-size: 17px; font-weight: 500; margin-bottom: 5px; }
+.dataset-list article span { color: var(--color-text-secondary); font-size: 11px; }
+.dataset-list dl { display: flex; gap: 28px; padding-right: 25px; }
+.dataset-list dt { color: var(--color-text-secondary); font-size: 10px; }
+.dataset-list dd { font: 21px var(--font-mono); }
+.dataset-list article > a { font-size: 12px; }
+.data-section-heading { margin: 32px 0 12px; font-size: 14px; font-weight: 500; }
+.data-endpoints > a, .data-sources > a { display: flex; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--color-border); font-size: 12px; text-decoration: none; }
+.data-endpoints > a:hover, .data-sources > a:hover { color: var(--color-brand); }
+.data-endpoints span, .data-sources span { color: var(--color-text-secondary); font-size: 11px; }
+.data-revisions { margin-top: 36px; color: var(--color-text-secondary); font-size: 11px; }
+.data-revisions summary { cursor: pointer; }
+.data-revisions dl { display: grid; grid-template-columns: 80px 1fr; gap: 8px; margin-top: 12px; }
+.data-revisions dd { overflow-wrap: anywhere; }
+.ranking-page :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+@media (prefers-color-scheme: dark) { .ranking-page { --ranking-ink: #a3aaa5; } }
+@media (max-width: 1200px) { header .left p, header .left .slash { display: none; } }
+@media (max-width: 720px) {
+  .ranking-page { padding: 25px 18px; }
+  .ranking-heading { margin-bottom: 22px; }
+  .ranking-heading h2 { font-size: 25px; }
+  .ranking-toolbar { gap: 12px; }
+  .ranking-segment button { padding: 7px 12px; font-size: 12px; }
+  .ranking-filters { gap: 8px; padding-bottom: 18px; }
+  .ranking-filters input { width: 100%; }
+  .ranking-filters select { flex: 1 1 120px; width: 40%; }
+  #ranking-count { width: 100%; margin: 4px 0 0; }
+  .ranking-chart-heading { padding: 20px 0; }
+  #ranking-context { font-size: 9px; }
+  .ranking-axis { grid-template-columns: 1fr; padding-left: 0; height: 35px; }
+  .ranking-axis > span { display: none; }
+  .ranking-axis > div { margin-top: 4px; }
+  .ranking-bar-row { display: block; padding-top: 12px; }
+  .ranking-bar-row > a { font-size: 12px; }
+  .ranking-bar-track { height: 35px; }
+  .ranking-bar { height: 17px; }
+  .ranking-bar-value { font-size: 10px; }
+  .ranking-model-link img { width: 16px; height: 16px; }
+  .ranking-timeline-row { grid-template-columns: 86px 18px 1fr; min-height: 64px; }
+  .ranking-timeline-dot::after { height: 57px; }
+  .ranking-date { font-size: 9px; }
+  .ranking-lab-label { display: none; }
+  .ranking-scatter { overflow-x: auto; padding-top: 8px; }
+  .ranking-point text { font-size: 9px; }
+  .ranking-footer { font-size: 9px; gap: 8px; }
+  .dataset-list article { gap: 20px; }
+  .dataset-list article > div { flex-basis: 100%; }
+  .dataset-list dl { margin-right: auto; padding-right: 0; }
+  .data-endpoints > a, .data-sources > a { flex-wrap: wrap; }
+  .ranking-detail { padding: 22px; }
+  .ranking-facts dd { font-size: 15px; }
+}

@@ -10,5 +10,6 @@ packages/sdk/src/snapshot.js
 
 # Modelspage local build, probe and publishing state
 .modelspage/
+.wrangler/
 .env.*
 !.env.example

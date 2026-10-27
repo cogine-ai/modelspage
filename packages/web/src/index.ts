@@ -1,3 +1,4 @@
+import "../../../cogine/web/client.ts";
 import { costSummary } from "./shared.js";
 
 type SortDirection = "asc" | "desc";

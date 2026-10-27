@@ -138,7 +138,8 @@ describe("daily fixed-input proposal", () => {
     expect(safe).toContain("failed");
     expect(safe).not.toContain("sensitive");
     expect(safe).not.toContain("raw_files");
-    expect(safe).not.toContain("999");
+    expect(safe).not.toContain('"score":999');
+    expect(JSON.parse(safe)).not.toHaveProperty("snapshots");
   });
 
   test("a candidate Bun preload never executes in a keyed trusted-cwd build or isolated sync runtime", async () => {

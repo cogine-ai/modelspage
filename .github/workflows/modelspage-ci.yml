@@ -30,11 +30,14 @@ jobs:
           bun-version-file: .bun-version
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run typecheck
+      - run: bun run typecheck:web
       - run: bun run schema:check
+      - run: bun cogine/web/schema.ts --check
       - run: bun run test:cogine
       - run: bun run build:fixture
       - run: bun cogine/src/cli.ts validate --input dist/fixture
       - run: bun run publish:dry-run
+      - run: bun run web:build
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

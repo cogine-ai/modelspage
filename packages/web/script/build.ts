@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { RenderedPages, Providers, Models, SearchIndexJson, renderDocument } from "../src/render";
+import { RenderedPages, Providers, Models, SearchIndexJson, renderDocument, AdditionalFiles } from "../src/render";
 import {
   filterCatalogByModelType,
   generateV2,
@@ -9,16 +9,23 @@ import {
 } from "@models.dev/core";
 import fs from "fs/promises";
 import path from "path";
+import { licenseBanner, siteAssets } from "../../../cogine/web/site.ts";
 
 await fs.rm("./dist", { recursive: true, force: true });
 await Bun.build({
   entrypoints: ["./index.html"],
   outdir: "dist",
   target: "bun",
+  banner: licenseBanner,
 });
 
 for await (const file of new Bun.Glob("./public/*").scan()) {
+  if (["./public/favicon.svg", "./public/social-share.png"].includes(file)) continue;
   await Bun.write(file.replace("./public/", "./dist/"), Bun.file(file));
+}
+
+for (const [route, source] of siteAssets) {
+  await Bun.write(path.join("./dist", route.slice(1)), Bun.file(source));
 }
 
 // Copy provider logos to dist/logos/
@@ -82,11 +89,15 @@ for (const [route, rendered] of RenderedPages) {
 
 await Bun.write("./dist/search-index.json", SearchIndexJson);
 
+for (const [route, content] of AdditionalFiles) {
+  await Bun.write(path.join("./dist", route.replace(/^\//, "")), content);
+}
+
 const catalog = { models: Models, providers: Providers };
 const variants: Array<[suffix: string, filter: ModelTypeFilter]> = [
   ["", "default"],
   ["-all", "all"],
-  ...MODEL_TYPES.map((type) => [`-${type}`, [type]] as const),
+  ...MODEL_TYPES.map((type): [string, ModelTypeFilter] => [`-${type}`, [type]]),
 ];
 
 for (const [suffix, filter] of variants) {
@@ -103,3 +114,12 @@ await Bun.write(
 );
 
 await fs.rm("./dist/index.html", { force: true });
+
+if (process.env.MODELSPAGE_WEB_MODE === "public") {
+  await fs.copyFile("./dist/_index.html", "./dist/index.html");
+  await Bun.write("./dist/404.html", "<!doctype html><meta charset=\"utf-8\"><title>Not found | Modelspage</title><main><h1>Not found</h1><a href=\"/models\">Models</a></main>");
+  const worker = await Bun.build({ entrypoints: ["../../cogine/web/worker.ts"], target: "browser", format: "esm", minify: true, banner: licenseBanner });
+  if (!worker.success) throw new Error("Public web routing worker failed to build");
+  await Bun.write("./dist/_worker.js", worker.outputs[0]!);
+  await Bun.write("./dist/_routes.json", JSON.stringify({ version: 1, include: ["/*"], exclude: ["/logos/*", "/source-logos/*", "/licenses/*", "/*.js", "/*.css", "/favicon*.svg", "/social-share.png"] }));
+}

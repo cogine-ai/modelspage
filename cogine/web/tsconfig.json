@@ -1,0 +1,10 @@
+{
+  "extends": "../../packages/web/tsconfig.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "noEmit": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["./**/*.ts", "./**/*.tsx", "../../packages/web/src/**/*.ts", "../../packages/web/src/**/*.tsx", "../../packages/web/script/**/*.ts"]
+}

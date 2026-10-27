@@ -1,5 +1,5 @@
 import Index from "../index.html";
-import { getRenderedPage, Models, Providers, SearchIndexJson, renderDocument } from "./render";
+import { getRenderedPage, Models, Providers, SearchIndexJson, renderDocument, AdditionalFiles } from "./render";
 import {
   filterCatalogByModelType,
   filterModelsByModelType,
@@ -9,6 +9,7 @@ import {
   parseModelTypes,
 } from "@models.dev/core";
 import path from "path";
+import { additionalContentType, siteAssets } from "../../../cogine/web/site.ts";
 
 const ProvidersV2 = await generateV2(
   path.join(import.meta.dir, "..", "..", "..", "providers"),
@@ -28,13 +29,13 @@ Bun.serve({
       return new Response(file);
     },
     "/favicon.svg": () =>
-      new Response(Bun.file(path.join(import.meta.dir, "..", "public/favicon.svg")), {
+      new Response(Bun.file(siteAssets.get("/favicon.svg")!), {
         headers: {
           "Content-Type": "image/svg+xml",
         },
       }),
     "/social-share.png": () =>
-      new Response(Bun.file(path.join(import.meta.dir, "..", "public/social-share.png")), {
+      new Response(Bun.file(siteAssets.get("/social-share.png")!), {
         headers: {
           "Content-Type": "image/png",
         },
@@ -171,6 +172,14 @@ const server = Bun.serve({
     }
 
     const url = new URL(req.url);
+    const siteAsset = siteAssets.get(url.pathname);
+    if (siteAsset) return new Response(Bun.file(siteAsset));
+    const additionalFile = AdditionalFiles.get(url.pathname);
+    if (additionalFile !== undefined) {
+      return new Response(additionalFile, {
+        headers: { "Content-Type": additionalContentType(url.pathname) },
+      });
+    }
     const rendered = getRenderedPage(url.pathname);
     if (rendered !== undefined) {
       const shellUrl = new URL(url);
@@ -179,7 +188,7 @@ const server = Bun.serve({
       shellUrl.search = "";
 
       let html = await fetch(shellUrl.toString(), req).then((r) => r.text());
-      html = renderDocument(html, rendered);
+      html = renderDocument(html, rendered, url.origin);
       return new Response(html, {
         headers: {
           "Content-Type": "text/html",

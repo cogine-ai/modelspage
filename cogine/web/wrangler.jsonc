@@ -1,0 +1,14 @@
+{
+  "name": "modelspage",
+  "pages_build_output_dir": "../../packages/web/dist",
+  "compatibility_date": "2026-10-01",
+  "vars": {
+    "BUN_VERSION": "1.4.4",
+    "SKIP_DEPENDENCY_INSTALL": "1",
+    "MODELSPAGE_WEB_MODE": "public",
+    "MODELSPAGE_WEB_ORIGIN": "https://modelspage.pages.dev"
+  },
+  "r2_buckets": [
+    { "binding": "PUBLIC_DATA", "bucket_name": "modelspage-production" }
+  ]
+}

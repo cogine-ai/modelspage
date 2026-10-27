@@ -7,6 +7,9 @@ import { Fragment } from "hono/jsx";
 import { renderToString } from "hono/jsx/dom/server";
 import { existsSync, readFileSync, readdirSync } from "fs";
 import path from "path";
+import { extendPages, AdditionalFiles } from "../../../cogine/web/render.tsx";
+import { socialImageUrl } from "../../../cogine/web/site.ts";
+export { AdditionalFiles };
 import {
   booleanText,
   capabilitySummary,
@@ -34,7 +37,7 @@ const LabLogoSvgs = new Map<string, string>();
 type CatalogModel = ModelMetadata;
 type CatalogProvider = Provider;
 type CatalogProviderModel = Model;
-type ActiveSection = "models" | "providers" | "labs";
+type ActiveSection = "models" | "providers" | "labs" | "rankings" | "data";
 
 interface PageMetadata {
   title: string;
@@ -109,9 +112,9 @@ const LAB_NAME_OVERRIDES: Record<string, string> = {
 };
 
 const DEFAULT_PAGE_METADATA: PageMetadata = {
-  title: "Models.dev - An open-source database of AI models",
+  title: "Modelspage - AI models, pricing, and rankings",
   description:
-    "Models.dev is a comprehensive open-source database of AI model specifications, pricing, and features.",
+    "Compare AI model specifications, providers, pricing, and rankings on Modelspage.",
 };
 
 const ModelEntries = buildModelEntries();
@@ -139,10 +142,11 @@ export function getRenderedPage(pathname: string) {
   return RenderedPages.get(normalizeRoute(pathname));
 }
 
-export function renderDocument(template: string, page: RenderedPage) {
+export function renderDocument(template: string, page: RenderedPage, requestOrigin?: string) {
   return template
     .replaceAll("__PAGE_TITLE__", escapeHtml(page.metadata.title))
     .replaceAll("__PAGE_DESCRIPTION__", escapeHtml(page.metadata.description))
+    .replaceAll("__PAGE_IMAGE__", escapeHtml(socialImageUrl(requestOrigin)))
     .replace("<!--static-->", page.html);
 }
 
@@ -426,6 +430,7 @@ function buildPages() {
     addPage(labHref(lab.id), renderPage("labs", <LabPage lab={lab} />, labPageMetadata(lab)));
   }
 
+  extendPages(pages, { models: Models, providers: Providers }, renderPage);
   return pages;
 }
 
@@ -451,7 +456,7 @@ function renderPage(
 function modelPageMetadata(model: ModelEntry): PageMetadata {
   const metadata = model.metadata;
   const providerCount = model.providers.length;
-  const title = `${metadata.name} pricing, providers, and specs | Models.dev`;
+  const title = `${metadata.name} pricing, providers, and specs | Modelspage`;
   const context = metadata.limit?.context
     ? `${formatNumber(metadata.limit.context)} token context`
     : undefined;
@@ -489,7 +494,7 @@ function providerPageMetadata(
   provider: CatalogProvider,
   models: ProviderModelEntry[],
 ): PageMetadata {
-  const title = `${provider.name} models, pricing, and API docs | Models.dev`;
+  const title = `${provider.name} models, pricing, and API docs | Modelspage`;
   const labs = new Set<string>();
   for (const entry of models) {
     if (entry.canonical?.labName) labs.add(entry.canonical.labName);
@@ -503,7 +508,7 @@ function providerPageMetadata(
         : undefined;
   const description = compactMetadataDescription(
     [
-      `Browse ${plural(models.length, `${provider.name} model`)} on Models.dev.`,
+      `Browse ${plural(models.length, `${provider.name} model`)} on Modelspage.`,
       factSentence([
         labSummary,
         `pricing`,
@@ -521,7 +526,7 @@ function providerPageMetadata(
 }
 
 function labPageMetadata(lab: LabEntry): PageMetadata {
-  const title = `${lab.name} models, providers, and specs | Models.dev`;
+  const title = `${lab.name} models, providers, and specs | Modelspage`;
   const description = compactMetadataDescription(
     [
       lab.description,
@@ -589,10 +594,8 @@ function Header(props: { active: ActiveSection }) {
     <header>
       <div class="left">
         <a class="brand" href="/">
-          <h1>Models.dev</h1>
+          <h1>Modelspage</h1>
         </a>
-        <span class="slash"></span>
-        <p>An open-source database of AI models</p>
       </div>
       <div class="right">
         <nav class="top-nav" aria-label="Primary">
@@ -608,12 +611,18 @@ function Header(props: { active: ActiveSection }) {
           <a class={props.active === "labs" ? "active" : ""} href="/labs">
             Labs
           </a>
+          <a class={props.active === "rankings" ? "active" : ""} href="/rankings">
+            Rankings
+          </a>
+          <a class={props.active === "data" ? "active" : ""} href="/data">
+            Data
+          </a>
         </nav>
         <a
           class="github"
           target="_blank"
           rel="noopener noreferrer"
-          href="https://github.com/sst/models.dev"
+          href="https://github.com/cogine-ai/modelspage"
           aria-label="GitHub"
         >
           <svg
@@ -1327,7 +1336,7 @@ function CopyButton(props: { value: string; label: string }) {
   );
 }
 
-function MobileMenu(props: { active: "models" | "providers" | "labs" }) {
+function MobileMenu(props: { active: ActiveSection }) {
   return (
     <dialog
       id="mobile-menu"
@@ -1372,13 +1381,19 @@ function MobileMenu(props: { active: "models" | "providers" | "labs" }) {
         <a class={props.active === "labs" ? "active" : ""} href="/labs">
           Labs
         </a>
+        <a class={props.active === "rankings" ? "active" : ""} href="/rankings">
+          Rankings
+        </a>
+        <a class={props.active === "data" ? "active" : ""} href="/data">
+          Data
+        </a>
         <button type="button" id="mobile-search-trigger">
           Search
         </button>
         <a
           target="_blank"
           rel="noopener noreferrer"
-          href="https://github.com/sst/models.dev"
+          href="https://github.com/cogine-ai/modelspage"
         >
           GitHub
         </a>
@@ -1419,9 +1434,9 @@ function SearchDialog() {
           type="text"
           placeholder="Search models, providers, and labs"
           autocomplete="off"
-          spellcheck="false"
+          spellcheck={false}
           role="combobox"
-          aria-expanded="true"
+          aria-expanded={true}
           aria-controls="search-results"
           aria-autocomplete="list"
         />
@@ -1467,14 +1482,9 @@ function HelpDialog() {
       </div>
       <div class="body">
         <p>
-          <a href="/">Models.dev</a> is a comprehensive open-source database of
-          AI model specifications, pricing, and features.
-        </p>
-        <p>
-          The homepage starts with provider-agnostic model metadata. Model pages
-          list the providers serving that model; provider pages list every model
-          available from that provider; lab pages group canonical models by
-          author.
+          <a href="/">Modelspage</a> lets you browse models, compare providers,
+          and explore rankings. Open a model for its specifications and provider
+          prices.
         </p>
         <h2>API</h2>
         <p>
@@ -1484,17 +1494,17 @@ function HelpDialog() {
         </p>
         <div class="code-block">
           <code>
-            curl <a href="/api.json?type=all">https://models.dev/api.json?type=all</a>
+            curl <a href="/api.json?type=all" data-site-url="/api.json?type=all">/api.json?type=all</a>
           </code>
         </div>
         <div class="code-block">
           <code>
-            curl <a href="/models.json?type=all">https://models.dev/models.json?type=all</a>
+            curl <a href="/models.json?type=all" data-site-url="/models.json?type=all">/models.json?type=all</a>
           </code>
         </div>
         <div class="code-block">
           <code>
-            curl <a href="/catalog.json?type=all">https://models.dev/catalog.json?type=all</a>
+            curl <a href="/catalog.json?type=all" data-site-url="/catalog.json?type=all">/catalog.json?type=all</a>
           </code>
         </div>
         <h2>Logos</h2>
@@ -1506,15 +1516,15 @@ function HelpDialog() {
         <div class="code-block">
           <code>
             curl{" "}
-            <a href="/logos/anthropic.svg">
-              https://models.dev/logos/anthropic.svg
+            <a href="/logos/anthropic.svg" data-site-url="/logos/anthropic.svg">
+              /logos/anthropic.svg
             </a>
           </code>
         </div>
-        <h2>SDK</h2>
+        <h2>Upstream SDK</h2>
         <p>
-          Use the SDK to query the API from your app. It's type-safe and
-          exports the latest snapshot for offline use.
+          The models.dev SDK provides typed catalog queries and upstream snapshots
+          for offline use.
         </p>
         <div class="code-block">
           <code>
@@ -1526,9 +1536,9 @@ function HelpDialog() {
         </div>
         <h2>Contribute</h2>
         <p>
-          The data is stored in{" "}
+          The model catalog is stored in{" "}
           <a
-            href="https://github.com/anomalyco/models.dev"
+            href="https://github.com/cogine-ai/modelspage"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -1538,16 +1548,10 @@ function HelpDialog() {
         </p>
       </div>
       <div class="footer">
-        <a
-          href="https://github.com/sst/models.dev"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Edit on GitHub
-        </a>
-        <a href="https://opencode.ai" target="_blank" rel="noopener noreferrer">
-          Created by OpenCode
-        </a>
+        <span>
+          Based on <a href="https://github.com/anomalyco/models.dev" target="_blank" rel="noopener noreferrer">models.dev</a>
+          {" · "}<a href="/licenses/models-dev.txt">MIT License</a>
+        </span>
       </div>
     </dialog>
   );

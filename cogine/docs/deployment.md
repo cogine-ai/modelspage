@@ -1,6 +1,8 @@
-# R2 分发、失败恢复与回退
+# 版本化 R2 数据分发、失败恢复与回退
 
-生产分发实现位于 [`store.ts`](../src/store.ts) 和 [`publish.ts`](../src/publish.ts)。2026-10-26 已使用本地 Wrangler 在账户 `a11312197b2f8ff3e535b8c2f4ac9b22` 创建专用 `modelspage-production` 桶，并通过 Cloudflare API 读回确认。桶为 Standard/APAC，无自定义域名，r2.dev 访问关闭，没有发布目录或 manifest。当前登录未列出可用 zone，正式域名待补充；专桶 S3 凭据和公开读取尚未验收。默认 `MODELSPAGE_PUBLISH_ENABLED=false`，服务尚未上线。
+网站及 `/rankings.json` 已通过独立 Cloudflare Pages 部署：[modelspage.pages.dev](https://modelspage.pages.dev/)。网站的正式子域名、DNS 及自动构建见[公网部署记录](2026-10-28-public-deployment.md)。本节描述的是另一个版本化 `/v1/` 数据渠道，不能把其未启用状态等同于网站未上线。
+
+版本化分发实现位于 [`store.ts`](../src/store.ts) 和 [`publish.ts`](../src/publish.ts)。2026-10-26 已使用本地 Wrangler 在账户 `a11312197b2f8ff3e535b8c2f4ac9b22` 创建专用 `modelspage-production` 桶，并通过 Cloudflare API 读回确认。桶为 Standard/APAC，无自定义桶域名，r2.dev 访问关闭。2026-10-28 已配置网站的只读 R2 binding，但桶中尚无正式 manifest；版本化数据发布开关仍为 `MODELSPAGE_PUBLISH_ENABLED=false`。
 
 首发决策：主要 Provider 和模型的 C/P/N 应有广泛覆盖后再上线；范围和来源选择记录在[约束审计](2026-10-26-constraints-review.md)。不能把每类仅一条事实当成业务覆盖验收完成。
 
@@ -12,7 +14,7 @@ DNS 由用户在现有 DNS 平台手动配置，统一留到部署准备的最�
 
 候选入口为 `models.cogine.ai`（Spaceship）、`models.cogine.app`（Vercel）及 `models.cogineai.com`（当前 NS 查询为 DNSPod）。建议一个正式数据源，其他入口共用该版本或重定向。最终清单需覆盖实际选用的入口及所有权/证书验证记录；如接入方式涉及 nameserver 变更，应单独列出其范围，不能混作普通 CNAME。用户完成 DNS 后再执行公开路径、证书及缓存验收，在此之前这些检查保持未执行状态。
 
-当前 R2 自定义域名要求 zone 位于桶所在 Cloudflare 账户；保留外部权威 DNS 的 partial setup 需要 Business 或 Enterprise，接入方式尚未落实。不能假定在三个现有 DNS 平台分别添加一条 CNAME 就已满足该要求。参见 [R2 自定义域名](https://developers.cloudflare.com/r2/buckets/public-buckets/#add-your-domain-to-cloudflare) 和 [partial setup](https://developers.cloudflare.com/dns/zone-setups/partial-setup/)。本轮没有迁移 DNS、开通付费计划或发布生产数据。
+网站目前使用 Pages 子域名接入和私有 R2 binding，外部 DNS 的子域名可以直接 CNAME 到实际 Pages hostname，绕开了直接给桶绑定域名的限制；无需迁移 NS 或开通 Business。只有今后选择 R2 自定义桶域名时，才适用[同账户 zone](https://developers.cloudflare.com/r2/buckets/public-buckets/#add-your-domain-to-cloudflare)／[partial setup](https://developers.cloudflare.com/dns/zone-setups/partial-setup/)的条件，不再把它们作为整个网站的部署阻塞。
 
 ## 本地模拟
 
