@@ -3,7 +3,7 @@ base_model = "moonshotai/kimi-k3.1-pro"
 description = "Kimi multimodal agent model for visual understanding, coding, and planning"
 
 [capabilities]
-tools = { supported = true }
+tools = { supported = true, choice = ["auto", "none", "required", "tool"] }
 reasoning = { supported = true, effort = ["none", "low", "high", "max"] }
 structured_output = true
 
