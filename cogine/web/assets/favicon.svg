@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-labelledby="title">
+  <title id="title">Modelspage</title>
+  <rect width="32" height="32" rx="7" fill="#252725"/>
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 7h9l5 5v13H10z" stroke-width="1.7"/>
+    <path d="M19 7v5h5M13 16h7M13 20h7" stroke-width="1.5"/>
+  </g>
+</svg>

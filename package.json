@@ -15,6 +15,11 @@
     }
   },
   "scripts": {
+    "web:dev": "bun --cwd packages/web run dev",
+    "web:build": "bun --cwd packages/web run build",
+    "web:release": "bun cogine/web/release.ts",
+    "web:preview": "bun cogine/web/preview.ts",
+    "typecheck:web": "tsc --project cogine/web/tsconfig.json --noEmit",
     "test": "bun test cogine/test",
     "validate": "bun ./packages/core/script/validate.ts",
     "v1:check": "bun ./packages/core/script/v1-check.ts",

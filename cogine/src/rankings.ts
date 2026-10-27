@@ -67,7 +67,7 @@ function revision(snapshot: RankSourceSnapshot, digest: string): SourceRevision 
 }
 function attribution(snapshot: RankSourceSnapshot): Bundle["attribution"][number] {
   const cc = snapshot.metadata.license === "CC-BY-4.0" || /CC[ -]BY[ -]4\.0/i.test(snapshot.usage.evidence);
-  return { source_id: snapshot.source_id, license: cc ? "CC-BY-4.0" : "Source-specific data terms; redistribution " + snapshot.usage.redistribution, url: citationUrls[snapshot.source_id] ?? snapshot.endpoints[0] ?? policyUrl, text: `${snapshot.source_id}: ${snapshot.scope}. ${snapshot.usage.evidence} Identities normalized and observed daily token shares combined by Modelspage; source statistics are not whole-market or deduplicated usage. Source data_as_of=${snapshot.data_as_of ?? "unknown"}; retrieved_at=${snapshot.retrieved_at ?? "unknown"}.` };
+  return { source_id: snapshot.source_id, license: cc ? "CC-BY-4.0" : "Source-specific data terms; redistribution " + snapshot.usage.redistribution, url: citationUrls[snapshot.source_id] ?? snapshot.endpoints[0] ?? policyUrl, text: `${snapshot.source_id}: ${snapshot.scope}. ${snapshot.usage.evidence} Identities normalized and observed daily token shares combined by Modelspage; source statistics are not whole-market or deduplicated usage. Source data_as_of=${snapshot.data_as_of ?? "unknown"}; retrieved_at=${snapshot.retrieved_at ?? "unknown"}.` + (cc ? " Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/ . Modelspage joined model identities and combined daily source shares using fixed weights." : "") };
 }
 
 /** Pure projection over the supplied upstream membership. Never reads a clock, network or private catalog. */

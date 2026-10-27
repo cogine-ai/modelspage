@@ -3,8 +3,8 @@
   "sources": {
     "artificial-analysis": {
       "collection": "allowed",
-      "redistribution": "unverified",
-      "evidence": "https://artificialanalysis.ai/data-api/docs ; https://artificialanalysiscdn.com/legal/ProDataPlatformTerms.pdf (v1.1, 2026-08-19): internal research API use; public structured data and model-ranking/selection product use require specific written permission. No such permission is recorded here."
+      "redistribution": "allowed",
+      "evidence": "Project owner confirmed existing authorization for public model-ranking display and JSON redistribution in this project conversation on 2026-10-28. Owner-attested scope recorded in cogine/docs/2026-10-28-public-deployment.md; the underlying private agreement was not independently inspected. Retain required Artificial Analysis attribution and version/configuration. https://artificialanalysis.ai/data-api/docs ; https://artificialanalysiscdn.com/legal/ProDataPlatformTerms.pdf"
     },
     "openrouter": {
       "collection": "allowed",
@@ -18,8 +18,8 @@
     },
     "opencode-go-free": {
       "collection": "unverified",
-      "redistribution": "unverified",
-      "evidence": "https://opencode.ai/data methodology permits citation with source and update time; https://opencode.ai/legal/terms-of-service also contains extraction restrictions. Bulk machine-readable collection/redistribution permission is not established. Explicitly requested internal diagnostic collection only; no public grant is inferred from code license or public access."
+      "redistribution": "allowed",
+      "evidence": "Project owner confirmed existing authorization for public model-ranking display and JSON redistribution in this project conversation on 2026-10-28. Owner-attested scope recorded in cogine/docs/2026-10-28-public-deployment.md; the underlying private agreement was not independently inspected. Retain OpenCode Data source and actual update/retrieval time; do not label this source CC BY. https://opencode.ai/data ; https://opencode.ai/legal/terms-of-service"
     }
   }
 }
