@@ -37,6 +37,12 @@ export function assertPublishable(bundle: Bundle) {
     const source = sources.get(fact.source_id);
     if (!source || source.usage.redistribution !== "allowed") throw new Error(`Publication rights unconfirmed for source ${fact.source_id}`);
     if (field === "popularity" && !source.complete) throw new Error("Incomplete popularity snapshots cannot be published");
+    if (field === "popularity" && model.popularity.state === "known" && model.popularity.value.weighted) {
+      for (const [id, evidence] of Object.entries(model.popularity.value.weighted.sources)) if (evidence.observed_days) {
+        if (sources.get(id)?.usage.redistribution !== "allowed") throw new Error(`Publication rights unconfirmed for popularity component ${id}`);
+        if (!sources.get(id)?.complete) throw new Error(`Incomplete popularity component ${id}`);
+      }
+    }
     if (field === "capability") {
       const profileId = model.capability.state === "known" ? model.capability.value.profile_id : "";
       const profile = bundle.metric_profiles.find(p => p.id === profileId);

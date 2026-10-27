@@ -6,25 +6,29 @@ import { stableStringify } from "./integrity.js";
 import { publishRelease, publicVerifier, readRelease, rollbackRelease } from "./publish.js";
 import { configuredR2Store, DirectoryStore } from "./store.js";
 import { seedCurrentRelease } from "./active.js";
+import { collectRankings } from "./ranking-collect.js";
 
 async function main() {
   const { positionals, values } = parseArgs({ args: Bun.argv.slice(2), allowPositionals: true, strict: true, options: {
     fixture: { type: "boolean" }, "dry-run": { type: "boolean" }, probe: { type: "boolean" },
     "published-at": { type: "string" }, sequence: { type: "string" }, "out-dir": { type: "string" },
-    input: { type: "string" }, "state-dir": { type: "string" }, previous: { type: "string" },
-    snapshot: { type: "string" }, "state-path": { type: "string" }, "report-path": { type: "string" }, now: { type: "string" }, "public-base-url": { type: "string" }
+    input: { type: "string" }, root: { type: "string" }, "state-dir": { type: "string" }, previous: { type: "string" },
+    snapshot: { type: "string" }, "rankings-input": { type: "string" }, "state-path": { type: "string" }, "report-path": { type: "string" }, now: { type: "string" }, "public-base-url": { type: "string" }
   } });
   const command = positionals[0];
   const sequence = Number(values.sequence);
   if (command === "build" || command === "coverage") {
     if (!values["published-at"] || !Number.isSafeInteger(sequence) || sequence < 1) throw new Error("Build requires explicit --published-at ISO and --sequence positive-integer (use bun run build:fixture for an offline example)");
-    const result = await build({ fixture: values.fixture, publishedAt: values["published-at"], sequence, outDir: resolve(values["out-dir"] ?? "dist/public"), previousBundlePath: values.previous, openrouterSnapshotPath: values.snapshot });
+    const result = await build({ fixture: values.fixture, publishedAt: values["published-at"], sequence, outDir: resolve(values["out-dir"] ?? "dist/public"), root: values.root ? resolve(values.root) : undefined, previousBundlePath: values.previous, openrouterSnapshotPath: values.snapshot, rankingsInputPath: values["rankings-input"] });
     console.log(stableStringify({ revision: result.bundle.revision, sequence: result.manifest.publication_sequence, fixture: result.bundle.fixture, output: resolve(values["out-dir"] ?? "dist/public"), ...(command === "coverage" ? { coverage: result.coverage } : {}) }).trim());
   } else if (command === "fetch-current") {
     const base = values["public-base-url"] ?? process.env.MODELSPAGE_PUBLIC_BASE_URL;
     if (!base) throw new Error("fetch-current requires MODELSPAGE_PUBLIC_BASE_URL or --public-base-url");
     const previousPath = await seedCurrentRelease(base, resolve(values["out-dir"] ?? ".modelspage/active"));
     console.log(stableStringify({ active: !!previousPath, previous_path: previousPath }).trim());
+  } else if (command === "collect-rankings") {
+    const result = await collectRankings({ now: values.now, stateDir: values["state-dir"], outDir: values["out-dir"] });
+    console.log(stableStringify({ status: "completed", private_input: true, changed: result.report.changed, sources: result.report.attempts }).trim());
   } else if (command === "collect") {
     const snapshot = await collectOpenRouter({ probe: values.probe, fixture: values.fixture, now: values.now, statePath: values["state-path"], reportPath: values["report-path"] });
     // Never print raw response or source credentials.
@@ -43,7 +47,7 @@ async function main() {
     const result = await publishRelease(production?.store ?? new DirectoryStore(values["state-dir"] ?? ".modelspage/dry-run"), release, { allowFixture: dryRun, verifyPublic: production ? publicVerifier(production.publicBaseUrl) : undefined });
     console.log(stableStringify({ mode: dryRun ? "dry-run" : "production", ...result }).trim());
   } else {
-    console.log("Modelspage: build | collect | validate | coverage | fetch-current | publish | rollback. See README for explicit reproducible clocks, offline fixtures and dry-run examples.");
+    console.log("Modelspage: build | collect-rankings | collect | validate | coverage | fetch-current | publish | rollback. See README for explicit reproducible clocks, offline fixtures and dry-run examples.");
     if (command) process.exitCode = 1;
   }
 }

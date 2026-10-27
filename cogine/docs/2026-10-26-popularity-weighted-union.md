@@ -1,5 +1,7 @@
 # P：固定权重累加并集（2026-10-26）
 
+后续交付：C/P 已接入同一每日固定输入流程，当前全盘结果与生效条件见 [每日集成记录](2026-10-27-daily-cpn-integration.md)。本页数字和“尚未接入”的表述保留为当时证据。
+
 最新 Provider 认证刷新和身份桥补齐后的覆盖见 [2026-10-27 全量补验](2026-10-27-full-keyed-provider-validation.md)；本页保留权重决策及当时输入的历史证据。
 
 用户已明确 P 应按来源固定权重累加、覆盖取并集；不要求三个来源都覆盖，也不要求每个模型连续七天有记录。本轮确认权重为 **OpenRouter 60%、Vercel AI Gateway 30%、OpenCode Go/Free 10%**，已写入 [`popularity-policy.json`](../config/popularity-policy.json)，状态为 `accepted`。

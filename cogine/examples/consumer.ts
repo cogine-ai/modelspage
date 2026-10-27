@@ -14,7 +14,7 @@ const available = [
   { identity: { provider: "openrouter", request_model_id: "example-lab/model-v1", scope: { ...PUBLIC_SCOPE } }, display_name: "Host-owned model", free: false },
   { identity: { provider: "custom-local", request_model_id: "my-exact-model-id", scope: { ...PUBLIC_SCOPE, route: "custom" } }, display_name: "Private local selection", free: true },
 ];
-const indexes = project(available, release.bundle, { popularity_source_id: "openrouter-weekly", now: release.manifest.published_at });
+const indexes = project(available, release.bundle, { ...(!release.bundle.ranking_defaults ? { popularity_source_id: "openrouter-weekly" } : {}), now: release.manifest.published_at });
 console.log(JSON.stringify({ revision: release.manifest.revision, modes: { C: indexes.capability, P: indexes.popularity, N: indexes.newest }, filteredFree: filterIndex(indexes.newest, { free_only: true }), explanations: indexes.explanations }, null, 2));
 // Favorites are a separate user-owned list; preserve its order without applying these indexes.
 // No network request occurs when opening the selector, sorting or filtering.

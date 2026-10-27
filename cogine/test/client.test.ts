@@ -25,7 +25,7 @@ describe("staged verified consumer update", () => {
     await expect(verifyRelease(sealed.manifest, async () => { throw new Error("404"); })).rejects.toThrow("404");
     await expect(verifyRelease(sealed.manifest, async () => sealed.catalog + " ")).rejects.toThrow("hash");
     await expect(verifyRelease({ ...sealed.manifest, schema_version: 2 }, async () => sealed.catalog)).rejects.toThrow();
-    const incompatible = seal(bundle({ module_compatibility: { projection: 1, min_consumer_version: "2.0.0" } }));
+    const incompatible = seal(bundle({ module_compatibility: { projection: 1, min_consumer_version: "3.0.0" } }));
     await expect(verify(incompatible)).rejects.toThrow("Incompatible");
     const tampered = seal();
     tampered.bundle.revision = "f".repeat(64);

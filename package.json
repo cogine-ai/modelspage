@@ -62,7 +62,8 @@
     "schema:generate": "bun cogine/scripts/schema.ts",
     "schema:check": "bun cogine/scripts/schema.ts --check",
     "upstream:sync": "bun cogine/scripts/sync-upstream.ts",
-    "validate:release": "bun cogine/src/cli.ts validate"
+    "validate:release": "bun cogine/src/cli.ts validate",
+    "collect:rankings": "bun cogine/src/cli.ts collect-rankings"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1156.0",

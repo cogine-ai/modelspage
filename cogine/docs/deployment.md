@@ -73,3 +73,7 @@ bun run rollback --input dist/previous-verified-release --sequence 3 --published
 撤回在 corrections 配置中提交明确记录及审核依据，通过 PR 后发布更高序号。客户端在正常后台检查周期内收到；不能承诺立即撤回全部离线缓存。
 
 同环境 GitHub workflow 用 concurrency 串行；R2 的条件写及序号比较仍负责阻止旧构建、外部发布器或并发工作流覆盖新版本。
+
+## 每日加密排名输入
+
+当前 reviewed-main build 需要 `MODELSPAGE_INPUT_ENCRYPTION_KEY` 解密同 commit 的 `cogine/data/rankings.json`，只在可信 build 步骤注入；AA/OpenRouter API key 仅每日采集使用，发布不重新联网采样。未通过许可/首发检查的明文候选不能作为 Actions artifact 上传，公开生产 artifact 仅在成功发布后上传。三个项目专用 repository secrets 已配置；R2 写凭据与生产开关继续沿用单独的 production 环境。新配置不启用外网发布或修改 DNS。见[每日流程](2026-10-27-daily-cpn-integration.md)。

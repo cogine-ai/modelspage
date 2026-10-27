@@ -82,6 +82,7 @@ jobs:
         env:
           PUBLICATION_SEQUENCE: ${{ steps.plan.outputs.sequence }}
           PUBLICATION_TIME: ${{ steps.plan.outputs.published_at }}
+          MODELSPAGE_INPUT_ENCRYPTION_KEY: ${{ secrets.MODELSPAGE_INPUT_ENCRYPTION_KEY }}
         run: |
           previous=()
           if [ -f .modelspage/active/catalog.json ]; then
@@ -108,7 +109,8 @@ jobs:
           MODELSPAGE_R2_ACCESS_KEY_ID: ${{ secrets.MODELSPAGE_R2_ACCESS_KEY_ID }}
           MODELSPAGE_R2_SECRET_ACCESS_KEY: ${{ secrets.MODELSPAGE_R2_SECRET_ACCESS_KEY }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
+        # Failed licensing/readiness checks must not expose private C/P candidates.
+        if: success()
         with:
           name: reviewed-production-build
           path: dist/production
