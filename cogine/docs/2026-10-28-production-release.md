@@ -2,7 +2,7 @@
 
 ## 当前已完成
 
-- 三域名 `models.cogine.ai`、`models.cogine.app`、`models.cogineai.com` 的 Cloudflare Pages verification／certificate validation 均为 active；实际 HTTPS `/rankings.json` 均返回200、614模型和相同公开 revision `47eb9794f9ad3f8a69cc4de6f0159499fe3e358bb6d7589be221b2eb0ed82d6c`。Google 与 Cloudflare 公共 DNS 均返回已登记 Pages CNAME。
+- 域名接入早期检查（目录升级前）：三域名 `models.cogine.ai`、`models.cogine.app`、`models.cogineai.com` 的 Cloudflare Pages verification／certificate validation 均为 active；实际 HTTPS `/rankings.json` 均返回200、614模型和相同公开 revision `47eb9794f9ad3f8a69cc4de6f0159499fe3e358bb6d7589be221b2eb0ed82d6c`。Google 与 Cloudflare 公共 DNS 均返回已登记 Pages CNAME。当前覆盖为617模型、C200／P54／N615，详见下文首轮自动发布记录。
 - Pages 生产配置与随仓库 Wrangler 配置的正式 origin 改为 `https://models.cogine.ai`；原有 `PUBLIC_DATA` 只读 binding 保持专桶 `modelspage-production`。已单独重建当前 main，部署 `35fa99b4-54b1-4fe0-8963-3716b5a2efbb` 成功；三个域名各14条页面/API及 CORS 预检均通过，分享图元数据均使用正式 origin，排名 JSON 完整字节一致。
 - GitHub production 已填写正式 public base URL、R2 account 与 bucket。真实专桶凭据与条件写验证通过后，将两项 S3 Secrets 经标准输入写入该 environment 并开启生产发布；仓库级输入解密 secret 已有，无需复制到聊天或仓库。
 
@@ -52,4 +52,12 @@ Data 页补上现已可用的 `/v1/manifest.json` 入口。外网、S3认证、�
 
 修复仅在该来源已经 disabled 且没有新 snapshot 时保留既有说明；当前审核后的 usage 仍照常更新，其他状态转为 disabled 时仍记录原因。没有放宽发布比较、删除来源审计或改变 C/P/N 规则。回归先复现 initial build → previous 重建会发布 sequence 2，修复后返回 unchanged／sequence 1，并确认 manifest 内容和元数据不变、候选对象未上传。本项目完整209项测试／1395断言与类型检查通过。
 
-已发布 sequence 2 保留为历史，不倒退发布序号。当前 revision 为 `9c8dd12a8c6b4edfd5a861044ccdc1e008afb8a9809d192d324b6d416a5e5332`，发布时间 `2026-10-27T20:32:18.000Z`，manifest SHA-256 `369d163684f35b10b22d3eae7a597e6cee61b822b55f3ebf3d150ad1128e615e`；catalog 36,050,111字节、SHA-256 `b82f971d64a13a6de4d622e6c3f5c3d45d42e19937c97bbc777a6e65211d6b81`。修复合并后的真实 unchanged 结果、Actions／Pages deployment 及三域名公开字节回读记录在关联修复 PR。
+已发布 sequence 2 保留为历史，不倒退发布序号。当前 revision 为 `9c8dd12a8c6b4edfd5a861044ccdc1e008afb8a9809d192d324b6d416a5e5332`，发布时间 `2026-10-27T20:32:18.000Z`，manifest SHA-256 `369d163684f35b10b22d3eae7a597e6cee61b822b55f3ebf3d150ad1128e615e`；catalog 36,050,111字节、SHA-256 `b82f971d64a13a6de4d622e6c3f5c3d45d42e19937c97bbc777a6e65211d6b81`。
+
+[修复 PR #8](https://github.com/cogine-ai/modelspage/pull/8) 已合并为 `08f4f98cf7400cb334de1b2f589176ac550e6867`；[CI 40581264802](https://github.com/cogine-ai/modelspage/actions/runs/40581264802) 通过，[自动发布40581264646](https://github.com/cogine-ai/modelspage/actions/runs/40581264646) 的真实日志返回 `unchanged / sequence 2 / revision 9c8dd12a8c6b4edfd5a861044ccdc1e008afb8a9809d192d324b6d416a5e5332`。三个域名回读的 manifest SHA-256 仍为 `369d163684f35b10b22d3eae7a597e6cee61b822b55f3ebf3d150ad1128e615e`，排名 JSON SHA-256 仍为 `df384a4862505fad20d4b73610577a603c0760d6b318cbf9fa000a217f3aba45`；未制造新的资料时间或发布序号。
+
+## 程序客户端的已知访问限制
+
+三个正式域名及 `modelspage.pages.dev` 使用默认 `Python-urllib/3.12` User-Agent 重复返回403／error 1010；使用 `curl/8.7.1` 和 `Modelspage public-readback/1.0` 均返回200。因此，上述公开读取验收覆盖这些已验证客户端，不代表所有库的默认客户端都可访问。
+
+[Cloudflare error 1010 官方说明](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1010/)确认：Pages 自定义域名和 `pages.dev` 也经过 Cloudflare 管理区的 Browser Integrity Check；自有 zone 关闭或 skip 此检查不能覆盖该层。客户端应发送标识自身应用的描述性 User-Agent，无需伪装浏览器。Python urllib 的 manifest 请求示例见[运行手册](deployment.md#程序读取)。此次仅记录限制与客户端接入方法，未修改全局安全设置或部署架构。

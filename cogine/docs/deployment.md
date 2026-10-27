@@ -2,7 +2,7 @@
 
 正式网站为 [models.cogine.ai](https://models.cogine.ai/)，另两个域名共用同一版本。网站 `/rankings.json` 和版本化 [`/v1/manifest.json`](https://models.cogine.ai/v1/manifest.json) 均已上线；两个合同分别服务 canonical 排名与带精确 Provider 身份的资料。域名、真实条件写及合并后自动发布的验证见[正式发布验收](2026-10-28-production-release.md)。
 
-版本化分发实现位于 [`store.ts`](../src/store.ts) 和 [`publish.ts`](../src/publish.ts)。专用桶为账户 `a11312197b2f8ff3e535b8c2f4ac9b22` 的 `modelspage-production`（Standard/APAC）。桶保持私有，r2.dev 关闭，网站通过只读代码路径的 R2 binding 分发。GitHub production 的两项专桶 S3 secrets、四项发布变量已配置，`MODELSPAGE_PUBLISH_ENABLED=true`；首版 sequence 1 已发布并从三个域名核对完整 hash。
+版本化分发实现位于 [`store.ts`](../src/store.ts) 和 [`publish.ts`](../src/publish.ts)。专用桶为账户 `a11312197b2f8ff3e535b8c2f4ac9b22` 的 `modelspage-production`（Standard/APAC）。桶保持私有，r2.dev 关闭，网站通过只读代码路径的 R2 binding 分发。GitHub production 的两项专桶 S3 secrets、四项发布变量已配置，`MODELSPAGE_PUBLISH_ENABLED=true`。当前为 sequence 2；PR #8 合并后的真实自动发布返回 unchanged，三个域名的 manifest 与排名 JSON 完整 hash 均保持不变，见[发布验收](2026-10-28-production-release.md#无变化重发回归与修复)。
 
 首发决策：主要 Provider 和模型的 C/P/N 应有广泛覆盖后再上线；范围和来源选择记录在[约束审计](2026-10-26-constraints-review.md)。不能把每类仅一条事实当成业务覆盖验收完成。
 
@@ -15,6 +15,23 @@ DNS 由用户在现有 DNS 平台手动配置，统一留到部署准备的最�
 已生效入口为 `models.cogine.ai`（Spaceship）、`models.cogine.app`（Vercel）及 `models.cogineai.com`（DNSPod）。三个 `models` CNAME 均指向 `modelspage.pages.dev`，verification／certificate validation 均 active，HTTPS、API、缓存头、CORS 和条件读取已分别回读验收。主地址为 models.cogine.ai；没有迁移主域 NS。
 
 网站目前使用 Pages 子域名接入和私有 R2 binding，外部 DNS 的子域名可以直接 CNAME 到实际 Pages hostname，绕开了直接给桶绑定域名的限制；无需迁移 NS 或开通 Business。只有今后选择 R2 自定义桶域名时，才适用[同账户 zone](https://developers.cloudflare.com/r2/buckets/public-buckets/#add-your-domain-to-cloudflare)／[partial setup](https://developers.cloudflare.com/dns/zone-setups/partial-setup/)的条件，不再把它们作为整个网站的部署阻塞。
+
+## 程序读取
+
+三个正式域名及 `modelspage.pages.dev` 实测对默认 `Python-urllib/3.12` User-Agent 重复返回403／error 1010；`curl/8.7.1` 和 `Modelspage public-readback/1.0` 均返回200。公开 API 可读取，但不能据此声称所有默认 HTTP 客户端均通过。
+
+Cloudflare Pages 管理区的 Browser Integrity Check 不受自有 zone 的关闭或 skip 规则控制。[Cloudflare error 1010 文档](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1010/)建议客户端发送能标识应用的描述性 User-Agent，无需伪装浏览器。Python urllib 读取公开 manifest 示例：
+
+```python
+import json
+from urllib.request import Request, urlopen
+
+request = Request("https://models.cogine.ai/v1/manifest.json",
+                  headers={"User-Agent": "Modelspage-client/1.0"})
+with urlopen(request, timeout=30) as response:
+    manifest = json.load(response)
+print(manifest["revision"])
+```
 
 ## 本地模拟
 
