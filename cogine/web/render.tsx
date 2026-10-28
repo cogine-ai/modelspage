@@ -9,6 +9,7 @@ import { bundleRevision } from "../src/integrity.ts";
 import type { Bundle } from "../src/types.ts";
 import { licensePath, upstreamLicense } from "./site.ts";
 import { selectPublishedDataset } from "./version.ts";
+import { pageStructuredData, serializeStructuredData, structuredDataId } from "./structured-data.ts";
 
 type Page = { html: string; metadata: { title: string; description: string } };
 type Section = "models" | "providers" | "labs" | "rankings" | "data";
@@ -42,6 +43,12 @@ export function extendPages(pages: Map<string, Page>, catalog: { models: Record<
   pages.set("/data", renderPage("data", <DataPage dataset={dataset} />, {
     title: "Data | Modelspage", description: "Model catalogs and ranking datasets in JSON.",
   }));
+
+  const origin = process.env.MODELSPAGE_WEB_ORIGIN ?? "https://models.cogine.ai";
+  for (const [route, page] of pages) {
+    const schema = pageStructuredData(origin, route, page.metadata, catalog, dataset);
+    pages.set(route, { ...page, html: `${page.html}<script type="application/ld+json" id="${structuredDataId}">${serializeStructuredData(schema)}</script>` });
+  }
 }
 
 function emptyBundle(lock: { commit: string; imported_at: string; repository: string }): Bundle {
