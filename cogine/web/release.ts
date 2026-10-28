@@ -3,6 +3,7 @@ import { parseArgs } from "node:util";
 import { build } from "../src/build.ts";
 import { atomicWrite } from "../src/integrity.ts";
 import { validateWebRankingDataset } from "./schema.ts";
+import { readPublicBytes } from "../src/request.ts";
 
 const root = resolve(import.meta.dir, "../..");
 const { values } = parseArgs({ args: Bun.argv.slice(2), strict: true, options: { "published-at": { type: "string" } } });
@@ -20,10 +21,9 @@ const clock = values["published-at"] ?? (await new Response(commit.stdout).text(
 if (await commit.exited) throw new Error("Unable to resolve the reviewed commit build clock");
 const outDir = resolve(root, "dist/web-production-data");
 let previousPath: string | undefined;
-const current = await fetch(new URL("/rankings.json", origin));
+const { response: current, bytes } = await readPublicBytes(new URL("/rankings.json", origin), { allowNotFound: true, onEvent: public_read => console.error(JSON.stringify({ public_read })) });
 if (current.status !== 404) {
-  if (!current.ok) throw new Error(`Current public ranking data is unavailable (${current.status})`);
-  const text = await current.text();
+  const text = new TextDecoder().decode(bytes);
   const previous = validateWebRankingDataset(JSON.parse(text));
   if (previous.audience !== "public") throw new Error("The current website is not a public data release");
   previousPath = resolve(outDir, "previous-rankings.json");
