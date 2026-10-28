@@ -16,13 +16,13 @@
 
 排名默认标注 P 已知成员的前30条，`numberOfItems` 是该指标已知总数，C/N 兜底成员不能获得 P 名次。客户端切换 C/P/N、搜索、筛选和显示更多时，标注与实际可见成员同步；比较图使用 C/P 均已知的无序交集，不宣称名次。真实零值保持已知，unknown 不补零。
 
-数据集描述概括现有页面和下载内容。模型目录注明上游创建者、固定 commit 与原 MIT 许可；Modelspage 创建的聚合排名用 `isBasedOn` 保留各来源，不向它转授统一 MIT 许可。排名 `version`、`dateModified` 使用已经发布且无变化时保留的 revision／时间；目录不把 `retrieved_at` 当修改时间，整个 C/P/N 数据集不套用 P 的统计窗口。manifest 是发现元数据，没有冒充可下载 catalog。
+数据集描述概括现有页面和下载内容。模型目录注明上游创建者、固定 commit 与原 MIT 许可；Modelspage 创建的聚合排名用 `isBasedOn` 保留各来源，不向它转授统一 MIT 许可。后续已补充[独立来源许可 v1.0](../web/licenses/rankings-v1.0.txt)，由排名 Dataset 的 `license` 以自定义 `CreativeWork` 指向版本化公开文件；来源范围与验证见[许可记录](2026-10-28-ranking-license.md)。排名 `version`、`dateModified` 使用已经发布且无变化时保留的 revision／时间；目录不把 `retrieved_at` 当修改时间，整个 C/P/N 数据集不套用 P 的统计窗口。manifest 是发现元数据，没有冒充可下载 catalog。
 
 ## 验证
 
 - 935个实际渲染页面逐页解析 JSON-LD；移除新增脚本后的 HTML 与修改前逐字节相同，排名 JSON 完整 hash 也相同。
 - Schema.org Validator 对完整617模型目录、默认排名和两数据集图验证；补充创建者后的最终三类页面均为0错误／0警告。
-- Google Rich Results Test 识别两个有效 `Dataset`；补充真实创建者信息。聚合排名没有统一公开许可声明，保留可选 `license` 的非严重提示，不为消除提示编造许可。
+- 初次 Google Rich Results Test 识别两个有效 `Dataset`；补充真实创建者信息，当时未设置聚合排名的 `license`，保留了一项非严重提示。后续使用版本化的自定义来源许可说明补齐，不将其改授统一开源许可；复测结果见[许可记录](2026-10-28-ranking-license.md)。
 - 浏览器实测：P54／C200／N615；前30条、显示更多60条、搜索 DeepSeek 的22条，以及比较图41点，JSON-LD 与实际结果一致。
 - 本项目217项测试／1475断言及两套类型检查通过，覆盖已知／未知、真实零值、来源许可、版本时间、URL 编码、可见切片及 `</script>`／Unicode 安全序列化。JSON-LD 同时用于静态 HTML 和客户端更新。
 

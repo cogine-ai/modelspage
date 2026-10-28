@@ -1,0 +1,101 @@
+Modelspage Rankings Data Terms
+Version 1.0 — 2026-10-28
+https://models.cogine.ai/licenses/rankings-v1.0.txt
+
+Scope
+
+These source-specific terms apply to the canonical C/P/N ranking dataset at
+https://models.cogine.ai/rankings.json and views of that dataset which reference
+this document. Different components have different licensing bases. The complete
+dataset is not offered under a single MIT or Creative Commons license.
+
+1. models.dev — model catalog and release-date fields
+
+The models.dev material is available under the MIT License, copyright (c) 2025
+models.dev. Its license permits use, modification and redistribution, including
+commercial use, with the required copyright and permission notice retained.
+The full MIT terms and disclaimer continue to apply:
+https://models.cogine.ai/licenses/models-dev.txt
+https://github.com/anomalyco/models.dev/blob/dde15ad9b8c0903ea4e26da44e637c4fd880e9a9/LICENSE
+
+2. OpenRouter — published rankings-daily observations
+
+The aggregated rankings-daily material used here is licensed CC BY 4.0. It may
+be shared and adapted, including commercially, under that license. Attribute
+OpenRouter, link to the license, identify changes, and retain the source's
+as-of time and provenance. Use the endpoint's citation, substituting its actual
+meta.as_of value:
+
+Source: OpenRouter (openrouter.ai/rankings), as of <meta.as_of>.
+Licensed under CC BY 4.0.
+
+This applies to the named Data API dataset, not to unrelated OpenRouter APIs,
+account data or the entire OpenRouter website.
+https://openrouter.ai/docs/cookbook/administration/data-api
+https://creativecommons.org/licenses/by/4.0/
+
+3. Vercel AI Gateway — published leaderboard-export observations
+
+This leaderboard material is licensed CC BY 4.0. Sharing and adaptation,
+including commercial use, are permitted under that license. Credit Vercel AI
+Gateway, link to the license, and identify Modelspage's transformations. Source
+references and observation dates in the dataset identify the material used.
+https://vercel.com/ai-gateway/leaderboards
+https://vercel.com/changelog/open-data-and-shareable-charts-for-ai-gateway-leaderboards
+https://creativecommons.org/licenses/by/4.0/
+
+4. Artificial Analysis — capability observations
+
+Modelspage's public display and JSON redistribution are covered by
+project-specific authorization confirmed by the project owner. This document
+does not transfer that authorization to recipients or grant unrestricted
+downstream rights. Reuse is governed by the Artificial Analysis rights you
+hold and its applicable terms or agreement, including any applicable exceptions
+and permissions for attributed charts or quotations.
+
+Retain the required Artificial Analysis credit and applicable chart logo.
+The dataset identifies the metric profile and configuration alongside the scores.
+Source: Artificial Analysis (artificialanalysis.ai).
+Modelspage's derived rankings are not endorsed by Artificial Analysis.
+
+Public reference: Data Platform Terms v1.1, 2026-08-19. A project-specific
+agreement may provide a different scope; this document does not replace it.
+https://artificialanalysis.ai/data-api/docs
+https://artificialanalysiscdn.com/legal/ProDataPlatformTerms.pdf
+
+5. OpenCode Data — Go / Free usage observations
+
+Modelspage's public display and JSON redistribution use project-specific
+authorization confirmed by the project owner. This document does not transfer
+that permission to recipients or relicense these observations as MIT or CC BY.
+Reuse is governed by the OpenCode rights you hold and its applicable terms or
+agreement. Retain the source's citation, OpenCode Data (opencode.ai/data), and
+its stated update time; a retrieval time is not a substitute for an update time.
+
+The open-source license for OpenCode software is not a license for all service
+data. Public references reviewed for this version include the service terms
+effective 2026-08-15:
+https://opencode.ai/data
+https://opencode.ai/legal/terms-of-service
+
+6. Modelspage transformations and source boundaries
+
+Model identities are joined to the canonical catalog. Popularity combines
+observed source shares using the configured 60% / 30% / 10% weights, with a
+union of observed models and explicit missing values. These are Modelspage
+transformations, not original source-platform rankings or an endorsement by
+the sources. Field-level sources, versions and observation times remain in
+the JSON's attribution, sources, profiles and model facts.
+
+A combined score can contain components with different permissions. Applying
+weights or joining identities does not expand an upstream grant. These terms
+add no restrictions to MIT or CC BY material, do not limit rights provided by
+law, and do not grant rights Modelspage does not hold. The applicable original
+license or agreement governs its own material if this document differs from it.
+The repository's software license remains separate from third-party data rights.
+
+Versioning
+
+This is version 1.0 of the source-specific data terms. Changes will be published
+at a new versioned URL; previously published versions remain available. The
+version date above describes this document, not the freshness of model data.
