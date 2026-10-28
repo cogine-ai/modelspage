@@ -62,6 +62,10 @@ function datasets(origin: string, dataset: WebRankingDataset) {
   return { catalog, rankings, dataCatalog };
 }
 
+export function rankingStructuredDataset(origin: string, dataset: WebRankingDataset) {
+  return datasets(origin, dataset).rankings;
+}
+
 export function pageStructuredData(origin: string, route: string, metadata: Metadata, catalog: Catalog, dataset: WebRankingDataset): StructuredData {
   const url = pageUrl(origin, route), siteId = new URL("/#website", origin).href, publisherId = new URL("/#publisher", origin).href;
   const collection = ["/", "/models", "/rankings", "/data"].includes(route);

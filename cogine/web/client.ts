@@ -1,6 +1,6 @@
 import type { WebRankingDataset, WebRankingModel } from "./data.ts";
 import { costSummary, escapeHtml } from "../../packages/web/src/shared.ts";
-import { rankingStructuredList, serializeStructuredData, structuredDataId, type StructuredData } from "./structured-data.ts";
+import { rankingStructuredDataset, rankingStructuredList, serializeStructuredData, structuredDataId, type StructuredData } from "./structured-data.ts";
 
 document.querySelectorAll<HTMLElement>("[data-site-url]").forEach(element => {
   element.textContent = new URL(element.dataset.siteUrl!, location.origin).href;
@@ -49,9 +49,15 @@ async function startRankings() {
   } catch (error) {
     results.innerHTML = '<p class="ranking-empty">Rankings could not load. <button type="button" id="ranking-retry">Retry</button></p>';
     results.setAttribute("aria-busy", "false");
+    schemaElement?.remove();
     document.getElementById("ranking-retry")?.addEventListener("click", () => location.reload());
     console.error(error);
     return;
+  }
+  if (schema && siteUrl) {
+    const dataset = rankingStructuredDataset(siteUrl, data);
+    const index = schema["@graph"].findIndex(node => node["@id"] === dataset["@id"]);
+    schema["@graph"][index] = dataset;
   }
   const models = new Map(data.models.map(model => [model.id, model]));
   const maxP = niceMax(data.models.map(model => model.p));
