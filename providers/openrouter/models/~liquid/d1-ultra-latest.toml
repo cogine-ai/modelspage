@@ -1,14 +1,13 @@
-# Modalities (OpenRouter's documented formats, narrowed to the lab's list where it has one): image: https://openrouter.ai/docs/guides/overview/multimodal/image-understanding
 schema = 2
 type = "decision"
-name = "Mercury Decide (free)"
+name = "d1-ultra Latest"
 description = "Decision model for typed evaluation of shared state"
-family = "mercury"
+family = "liquid"
 open_weights = false
-release_date = "2026-09-30"
+release_date = "2026-10-27"
 
 [modalities]
-input = ["text", "image/png", "image/jpeg", "image/webp", "image/gif"]
+input = ["text", "image"]
 output = ["text"]
 
 [capabilities]
@@ -18,7 +17,7 @@ structured_output = false
 temperature = false
 
 [limit]
-context = 65_536
+context = 32_768
 output = 0
 
 [api.systemone]
@@ -26,7 +25,8 @@ sdk = { aisdk = "@ai-sdk/typesafe-ai", opencodeai = "@opencode/ai/providers/open
 compatibility = { media_input = "state" }
 
 [cost.text.input]
-price = 0
+price = 0.042
+cache = { read = 0.042 }
 
 [cost.text.output]
 price = 0
