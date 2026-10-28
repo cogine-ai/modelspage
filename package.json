@@ -16,7 +16,7 @@
   },
   "scripts": {
     "web:dev": "bun --cwd packages/web run dev",
-    "web:build": "bun --cwd packages/web run build",
+    "web:build": "bun run --cwd packages/web build",
     "web:release": "bun cogine/web/release.ts",
     "web:preview": "bun cogine/web/preview.ts",
     "typecheck:web": "tsc --project cogine/web/tsconfig.json --noEmit",

@@ -1,5 +1,6 @@
 import type { WebRankingDataset, WebRankingModel } from "./data.ts";
 import { costSummary, escapeHtml } from "../../packages/web/src/shared.ts";
+import { rankingStructuredList, serializeStructuredData, structuredDataId, type StructuredData } from "./structured-data.ts";
 
 document.querySelectorAll<HTMLElement>("[data-site-url]").forEach(element => {
   element.textContent = new URL(element.dataset.siteUrl!, location.origin).href;
@@ -30,6 +31,9 @@ async function startRankings() {
   const provider = document.getElementById("ranking-provider") as HTMLSelectElement;
   const more = document.getElementById("ranking-more") as HTMLButtonElement;
   const detail = document.getElementById("ranking-detail") as HTMLDialogElement;
+  const schemaElement = document.getElementById(structuredDataId);
+  const schema: StructuredData | null = schemaElement ? JSON.parse(schemaElement.textContent!) : null;
+  const siteUrl = schema?.["@graph"].find(node => node["@type"] === "WebSite")?.url as string | undefined;
   const params = new URLSearchParams(location.search);
   let metric: Metric = ["capability", "newest"].includes(params.get("metric") ?? "") ? params.get("metric") as Metric : "popularity";
   let view: View = ["table", "compare"].includes(params.get("view") ?? "") ? params.get("view") as View : "chart";
@@ -92,6 +96,12 @@ async function startRankings() {
     else renderBars(rows.slice(0, limit));
     results.setAttribute("aria-busy", "false");
     saveUrl();
+    if (schema && schemaElement && siteUrl) {
+      const list = rankingStructuredList(siteUrl, rows, metric, view, limit);
+      const index = schema["@graph"].findIndex(node => node["@id"] === list["@id"]);
+      schema["@graph"][index] = list;
+      schemaElement.textContent = serializeStructuredData(schema);
+    }
   }
   function renderBars(rows: WebRankingModel[]) {
     const max = metric === "popularity" ? maxP : maxC;
