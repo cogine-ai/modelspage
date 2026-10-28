@@ -1,4 +1,5 @@
 import type { WebRankingDataset, WebRankingModel } from "./data.ts";
+import { rankingLicenseName, rankingLicensePath, rankingLicenseVersion } from "./ranking-license.ts";
 
 export const structuredDataId = "modelspage-structured-data";
 export type StructuredNode = Record<string, unknown>;
@@ -51,6 +52,7 @@ function datasets(origin: string, dataset: WebRankingDataset) {
     description: "AI model intelligence scores, weighted popularity observations, release dates, and their source provenance in JSON.",
     ...common, version: dataset.revision, dateModified: dataset.published_at,
     creator: common.publisher,
+    license: { "@type": "CreativeWork", name: rankingLicenseName, version: rankingLicenseVersion, url: new URL(rankingLicensePath, origin).href },
     variableMeasured: ["Model intelligence score", "Weighted popularity index", "Model release date"],
     isBasedOn: [source, ...sources.map(source => ({ "@type": "CreativeWork", name: source.id, url: source.url }))],
     distribution: [download("Model rankings", "/rankings.json")],

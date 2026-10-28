@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { buildRankingDataset, type CatalogModel, type CatalogProvider, type WebRankingDataset } from "../web/data.js";
-import { pageStructuredData, rankingStructuredList, serializeStructuredData, type StructuredNode } from "../web/structured-data.js";
+import { pageStructuredData, rankingStructuredDataset, rankingStructuredList, serializeStructuredData, type StructuredNode } from "../web/structured-data.js";
+import { siteAssets } from "../web/site.js";
 import { bundle, capability, known, model, timestamp } from "./contract-fixture.js";
 import type { ModelFacts, Popularity } from "../src/types.js";
 
@@ -103,16 +104,48 @@ test("dataset catalog connects two actual JSON downloads without turning its dis
     expect(String(node.description).length).toBeLessThanOrEqual(5000);
     expect(node.includedInDataCatalog).toEqual({ "@id": dataCatalog["@id"] });
   }
-  const catalogNode = datasets.find(node => (node.distribution as StructuredNode[]).some(download => String(download.contentUrl).includes("catalog.json")))!;
-  const rankingNode = datasets.find(node => node !== catalogNode)!;
+  const catalogNode = datasets.find(node => node["@id"] === `${origin}/data/#model-catalog`)!;
+  const rankingNode = datasets.find(node => node["@id"] === `${origin}/data/#rankings`)!;
   expect(catalogNode.license).toBe(`${origin}/licenses/models-dev.txt`);
   expect(catalogNode.creator).toMatchObject({ name: "models.dev", url: "https://models.dev/" });
   expect(rankingNode.creator).toEqual(rankingNode.publisher);
-  expect(rankingNode).not.toHaveProperty("license");
+  expect(rankingNode.license).toEqual({
+    "@type": "CreativeWork", name: "Modelspage Rankings Data Terms v1.0", version: "1.0", url: `${origin}/licenses/rankings-v1.0.txt`,
+  });
   expect(dataCatalog).not.toHaveProperty("license");
   expect(rankingNode.isBasedOn).toContainEqual({ "@type": "CreativeWork", name: "artificial-analysis", url: "https://artificialanalysis.ai/" });
   expect(rankingNode).not.toHaveProperty("sameAs");
   expect(rankingNode).not.toHaveProperty("temporalCoverage");
+});
+
+test("ranking pages and loaded datasets reference the same real versioned source-specific terms", async () => {
+  const { catalog, dataset } = fixture();
+  const loadedLicense = rankingStructuredDataset(origin, dataset).license as StructuredNode;
+  for (const route of ["/data", "/rankings"]) {
+    const graph = pageStructuredData(origin, route, metadata, catalog, dataset)["@graph"];
+    const ranking = graph.find(node => node["@id"] === `${origin}/data/#rankings`)!;
+    expect(ranking.license).toEqual(loadedLicense);
+  }
+  expect(loadedLicense["@type"]).toBe("CreativeWork");
+  expect(loadedLicense.version).toBe("1.0");
+  const url = new URL(String(loadedLicense.url));
+  expect(url.origin).toBe(origin);
+  expect(url.pathname).toBe("/licenses/rankings-v1.0.txt");
+  expect(url.search).toBe("");
+  const assetPath = siteAssets.get(url.pathname);
+  expect(assetPath).toBeDefined();
+  const asset = Bun.file(assetPath!);
+  expect(await asset.exists()).toBe(true);
+  expect(asset.type.startsWith("text/plain")).toBe(true);
+  const text = await asset.text();
+  expect(text.startsWith("Modelspage Rankings Data Terms\nVersion 1.0")).toBe(true);
+  for (const source of [
+    "https://models.cogine.ai/licenses/models-dev.txt",
+    "https://openrouter.ai/docs/cookbook/administration/data-api",
+    "https://vercel.com/changelog/open-data-and-shareable-charts-for-ai-gateway-leaderboards",
+    "https://artificialanalysis.ai/data-api/docs",
+    "https://opencode.ai/data",
+  ]) expect(text).toContain(source);
 });
 
 test("dataset versions and modification dates describe published facts rather than the latest retrieval", () => {
@@ -122,8 +155,8 @@ test("dataset versions and modification dates describe published facts rather th
   for (const current of [dataset, changedRetrieval]) {
     const graph = pageStructuredData(origin, "/data", metadata, catalog, current)["@graph"];
     const datasets = graph.filter(node => node["@type"] === "Dataset");
-    const catalogNode = datasets.find(node => node.license)!;
-    const rankingNode = datasets.find(node => node !== catalogNode)!;
+    const catalogNode = datasets.find(node => node["@id"] === `${origin}/data/#model-catalog`)!;
+    const rankingNode = datasets.find(node => node["@id"] === `${origin}/data/#rankings`)!;
     expect(catalogNode.version).toBe(dataset.canonical_source.commit);
     expect(catalogNode).not.toHaveProperty("dateModified");
     expect(catalogNode).not.toHaveProperty("datePublished");

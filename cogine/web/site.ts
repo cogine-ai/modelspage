@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { rankingLicensePath } from "./ranking-license.ts";
 
 export const upstreamLicense = readFileSync(resolve(import.meta.dir, "../../LICENSE"), "utf8");
 export const licensePath = "/licenses/models-dev.txt";
@@ -8,6 +9,7 @@ export const siteAssets = new Map([
   ["/favicon.svg", resolve(import.meta.dir, "assets/favicon.svg")],
   ["/social-share.png", resolve(import.meta.dir, "assets/social-share.png")],
   ["/source-logos/artificial-analysis.svg", resolve(import.meta.dir, "assets/artificial-analysis.svg")],
+  [rankingLicensePath, resolve(import.meta.dir, "licenses/rankings-v1.0.txt")],
 ]);
 
 export function socialImageUrl(requestOrigin?: string) {
