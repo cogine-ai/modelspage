@@ -186,4 +186,38 @@ describe("production transport configuration", () => {
     await publicVerifier("https://example.invalid", fetcher)("v1/revisions/test/catalog.json", "{}", metadata);
     await expect(publicVerifier("https://example.invalid", fetcher)("v1/revisions/test/catalog.json", "wrong", metadata)).rejects.toThrow("verification");
   });
+  test("public verification retries a timed-out 200 body and still verifies the recovered bytes", async () => {
+    const metadata = { contentType: JSON_TYPE, cacheControl: REVISION_CACHE };
+    const headers = { "Content-Type": JSON_TYPE, "Cache-Control": REVISION_CACHE, ETag: '"etag"' };
+    for (const recovered of ["{}", '{"different":true}']) {
+      let calls = 0;
+      const fetcher = (async () => {
+        if (++calls === 1) return new Response(new ReadableStream({
+          start(controller) { controller.error(new DOMException("public object body stalled", "TimeoutError")); },
+        }), { headers });
+        return new Response(recovered, { headers });
+      }) as unknown as typeof fetch;
+      const verify = publicVerifier("https://example.invalid", fetcher, { sleep: async () => {}, timeoutMs: 100 });
+      if (recovered === "{}") await verify("v1/revisions/test/catalog.json", "{}", metadata);
+      else await expect(verify("v1/revisions/test/catalog.json", "{}", metadata)).rejects.toThrow("verification");
+      expect(calls).toBe(2);
+    }
+  });
+  test("public verification never retries metadata or content-integrity failures", async () => {
+    const metadata = { contentType: JSON_TYPE, cacheControl: REVISION_CACHE };
+    const headers = { "Content-Type": JSON_TYPE, "Cache-Control": REVISION_CACHE, ETag: '"etag"' };
+    const missingEtag = { "Content-Type": JSON_TYPE, "Cache-Control": REVISION_CACHE };
+    for (const invalid of [
+      { headers: missingEtag, body: "{}" },
+      { headers: { ...headers, "Content-Type": "text/html" }, body: "{}" },
+      { headers: { ...headers, "Cache-Control": MANIFEST_CACHE }, body: "{}" },
+      { headers, body: '{"changed":true}' },
+    ]) {
+      let calls = 0;
+      const fetcher = (async () => { calls++; return new Response(invalid.body, { headers: invalid.headers }); }) as unknown as typeof fetch;
+      const verify = publicVerifier("https://example.invalid", fetcher, { sleep: async () => {}, timeoutMs: 100 });
+      await expect(verify("v1/revisions/test/catalog.json", "{}", metadata)).rejects.toThrow("verification");
+      expect(calls).toBe(1);
+    }
+  });
 });

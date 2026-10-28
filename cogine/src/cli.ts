@@ -24,7 +24,7 @@ async function main() {
   } else if (command === "fetch-current") {
     const base = values["public-base-url"] ?? process.env.MODELSPAGE_PUBLIC_BASE_URL;
     if (!base) throw new Error("fetch-current requires MODELSPAGE_PUBLIC_BASE_URL or --public-base-url");
-    const previousPath = await seedCurrentRelease(base, resolve(values["out-dir"] ?? ".modelspage/active"));
+    const previousPath = await seedCurrentRelease(base, resolve(values["out-dir"] ?? ".modelspage/active"), fetch, { onEvent: public_read => console.error(JSON.stringify({ public_read })) });
     console.log(stableStringify({ active: !!previousPath, previous_path: previousPath }).trim());
   } else if (command === "collect-rankings") {
     const result = await collectRankings({ now: values.now, stateDir: values["state-dir"], outDir: values["out-dir"] });
@@ -44,7 +44,7 @@ async function main() {
     }
     const dryRun = values["dry-run"] === true;
     const production = dryRun ? undefined : configuredR2Store();
-    const result = await publishRelease(production?.store ?? new DirectoryStore(values["state-dir"] ?? ".modelspage/dry-run"), release, { allowFixture: dryRun, verifyPublic: production ? publicVerifier(production.publicBaseUrl) : undefined });
+    const result = await publishRelease(production?.store ?? new DirectoryStore(values["state-dir"] ?? ".modelspage/dry-run"), release, { allowFixture: dryRun, verifyPublic: production ? publicVerifier(production.publicBaseUrl, fetch, { onEvent: public_read => console.error(JSON.stringify({ public_read })) }) : undefined });
     console.log(stableStringify({ mode: dryRun ? "dry-run" : "production", ...result }).trim());
   } else {
     console.log("Modelspage: build | collect-rankings | collect | validate | coverage | fetch-current | publish | rollback. See README for explicit reproducible clocks, offline fixtures and dry-run examples.");

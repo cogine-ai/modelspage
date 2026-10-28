@@ -6,6 +6,7 @@ import { bundleRevision, sha256, stableStringify } from "./integrity.js";
 import { validateBundle, validateManifest } from "./schema.js";
 import { assertInitialCpnReadiness } from "./readiness.js";
 import { PreconditionFailed, type Metadata, type ObjectStore, type StoredObject } from "./store.js";
+import { readPublicBytes, type PublicReadOptions } from "./request.js";
 
 export const JSON_TYPE = "application/json; charset=utf-8";
 export const REVISION_CACHE = "public, max-age=31536000, immutable";
@@ -143,9 +144,9 @@ export function rollbackRelease(release: Release, sequence: number, publishedAt:
   if (!Number.isSafeInteger(sequence) || sequence <= release.manifest.publication_sequence || !Number.isFinite(Date.parse(publishedAt))) throw new Error("Rollback requires a higher sequence and valid publication time");
   return verifyReleaseBytes({ ...release.manifest, publication_sequence: sequence, published_at: publishedAt }, release.catalogBody);
 }
-export function publicVerifier(baseUrl: string, fetcher: typeof fetch = fetch): PublicVerifier {
+export function publicVerifier(baseUrl: string, fetcher: typeof fetch = fetch, options: Omit<PublicReadOptions, "fetcher" | "allowNotFound"> = {}): PublicVerifier {
   return async (key, body, metadata) => {
-    const response = await fetcher(new URL("/" + key, baseUrl), { headers: { "Cache-Control": "no-cache" }, signal: AbortSignal.timeout(30_000) });
-    if (!response.ok || !response.headers.get("etag") || !response.headers.get("content-type")?.startsWith("application/json") || response.headers.get("cache-control") !== metadata.cacheControl || sha256(await response.text()) !== sha256(body)) throw new Error(`Public object verification failed: ${key}`);
+    const { response, bytes } = await readPublicBytes(new URL("/" + key, baseUrl), { ...options, fetcher });
+    if (!response.headers.get("etag") || !response.headers.get("content-type")?.startsWith("application/json") || response.headers.get("cache-control") !== metadata.cacheControl || sha256(bytes) !== sha256(body)) throw new Error(`Public object verification failed: ${key}`);
   };
 }

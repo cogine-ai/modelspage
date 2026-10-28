@@ -60,7 +60,7 @@ jobs:
   network-diagnostic:
     if: github.event_name == 'workflow_dispatch' && inputs.network_diagnostic
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -71,6 +71,13 @@ jobs:
           bun-version-file: .bun-version
       - name: Compare public DNS, address families and HTTP clients without credentials
         run: bun --no-env-file cogine/scripts/network-diagnostic.ts --out-dir .modelspage/network-diagnostic
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Exercise the production preparation path against both public origins
+        run: |
+          commit_time=$(git show -s --format=%cI HEAD)
+          for host in models.cogine.ai models.cogine.app; do
+            MODELSPAGE_PUBLIC_BASE_URL="https://$host" bun --no-env-file cogine/scripts/production.ts prepare --published-at "$commit_time" --active-dir ".modelspage/network-prepare/$host"
+          done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

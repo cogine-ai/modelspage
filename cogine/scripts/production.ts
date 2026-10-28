@@ -49,7 +49,7 @@ async function main() {
   if (positionals[0] === "prepare") {
     const baseUrl = process.env.MODELSPAGE_PUBLIC_BASE_URL;
     if (!baseUrl || !values["published-at"]) throw new Error("prepare requires MODELSPAGE_PUBLIC_BASE_URL and a fixed --published-at commit clock");
-    const previous = await fetchCurrentRelease(baseUrl);
+    const previous = await fetchCurrentRelease(baseUrl, fetch, { onEvent: public_read => console.error(JSON.stringify({ public_read })) });
     const plan = publicationPlan(previous?.manifest ?? null, values["published-at"]);
     if (previous) {
       await atomicWrite(join(directory, "catalog.json"), previous.catalog);
