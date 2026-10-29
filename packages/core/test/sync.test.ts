@@ -1922,6 +1922,11 @@ test("lists DigitalOcean Responses and Messages APIs from catalog capabilities",
     responses,
     messages,
   });
+  // Hand-authored per-API capabilities survive the rewrite.
+  const freeform = { tools: { freeform: ["text", "lark", "regex"] } };
+  expect(applyV2Set(digitalOceanV2Set(digitalOceanModel({ creator: "OpenAI" })), {
+    api: { "chat-completions": {}, responses: { ...responses, capabilities: freeform }, messages },
+  }).api).toEqual({ "chat-completions": {}, responses: { ...responses, capabilities: freeform }, messages });
   // Neither flagged nor hosted: Chat Completions only, so no table is written.
   expect(applyV2Set(digitalOceanV2Set(digitalOceanModel())).api).toBeUndefined();
   // Image models get no chat APIs.
@@ -3626,6 +3631,22 @@ test("omits Eden AI reasoning options for non-reasoning models", () => {
   expect(built).not.toHaveProperty("reasoning_options");
 });
 
+test("keeps image input and output on Eden AI image models listed as text only", () => {
+  const model = edenAIModel({
+    id: "vertex/gemini-nano-banana-2.1",
+    model_name: "gemini-nano-banana-2.1",
+    owned_by: "vertex",
+    context_length: null,
+    capabilities: { input_modalities: ["text"], output_modalities: ["text"] },
+  });
+
+  // The output matches the lab's, so it is factored out.
+  expect(buildEdenAIModel(model, undefined, new Set())).toMatchObject({
+    base_model: "google/gemini-nano-banana-2.1",
+    modalities: { input: ["text", "image"] },
+  });
+});
+
 test("skips Eden AI models without lab metadata", () => {
   expect(
     buildEdenAIModel(
@@ -4503,6 +4524,10 @@ test("Venice sync lists Responses after the first API and prices web search", ()
   const once = withResponsesApi(first);
   expect(Object.keys(once)).toEqual(["chat-completions", "responses"]);
   expect(withResponsesApi(once)).toEqual(once);
+  // Hand-authored per-API capabilities on Responses survive the rewrite.
+  const freeform = { tools: { freeform: ["text", "lark", "regex"] } };
+  expect(withResponsesApi({ ...first, responses: { ...responses, capabilities: freeform } }))
+    .toEqual({ ...first, responses: { ...responses, capabilities: freeform } });
 
   const capabilities = veniceModel().model_spec.capabilities;
   expect(veniceV2Set(veniceModel({ capabilities: { ...capabilities, supportsWebSearch: true } }))["cost.web_search"])
@@ -5984,6 +6009,12 @@ test("translates Vercel pricing tiers with an implicit zero minimum", () => {
       }],
     },
   });
+});
+
+test("skips Vercel models that are listed but retired upstream", () => {
+  const row = (id: string) => ({ id, name: id, created: 1_755_815_280, context_window: 512, max_tokens: 0, type: "image" });
+  expect(vercel.parseModels({ data: [row("prodia/flux-fast-schnell"), row("bfl/flux-2-pro")] }).map((model) => model.id))
+    .toEqual(["bfl/flux-2-pro"]);
 });
 
 test("maps Vercel language models tagged video-generation to video output", () => {
