@@ -1,18 +1,18 @@
 schema = 2
-base_model = "xiaomi/mimo-v2.6-flash"
-name = "MiMo V2.6 Flash (Consensus Protocol)"
-
-[modalities]
-input = ["text"]
-output = ["text"]
+base_model = "minimax/MiniMax-M3"
+name = "MiniMax M3 (DeepInfra)"
 
 [capabilities]
 reasoning = { supported = true, effort = ["none", "minimal", "low", "medium", "high", "xhigh", "max"] }
 structured_output = true
 
+[limit]
+context = 524_288
+output = 524_288
+
 [cost.text.input]
-price = 0.12
-cache = { read = 0.0025 }
+price = 0.28
+cache = { read = 0.056 }
 
 [cost.text.output]
-price = 0.25
+price = 1.1
