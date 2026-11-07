@@ -1,12 +1,12 @@
 {
   "repository": "https://github.com/anomalyco/models.dev",
   "default_branch_at_import": "dev",
-  "commit": "2055f95b2f24f679b0d3eb2cfb222fad488e332f",
-  "commit_time": "2026-11-05T17:48:34-08:00",
+  "commit": "6985c1c8bfe944e5c98c2c3d07843ee34b7c3a22",
+  "commit_time": "2026-11-06T17:27:59-08:00",
   "imported_at": "2026-10-25T17:55:41Z",
   "api_snapshot": null,
   "license": "MIT",
   "note": "Full Git history imported into an initially empty origin. This identifies the code/catalog tree, not a separately fetched models.dev API snapshot. The imported default branch is an observation; sync discovers remote HEAD each time.",
   "default_branch_at_last_sync": "dev",
-  "synced_at": "2026-11-06T02:23:37.685Z"
+  "synced_at": "2026-11-07T02:22:14.533Z"
 }
