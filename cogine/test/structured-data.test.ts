@@ -102,7 +102,9 @@ test("dataset catalog connects two actual JSON downloads without turning its dis
     expect(typeof node.name).toBe("string");
     expect(String(node.description).length).toBeGreaterThanOrEqual(50);
     expect(String(node.description).length).toBeLessThanOrEqual(5000);
-    expect(node.includedInDataCatalog).toEqual({ "@id": dataCatalog["@id"] });
+    expect(node.includedInDataCatalog).toEqual({
+      "@type": "DataCatalog", "@id": dataCatalog["@id"], name: dataCatalog.name, url: dataCatalog.url,
+    });
   }
   const catalogNode = datasets.find(node => node["@id"] === `${origin}/data/#model-catalog`)!;
   const rankingNode = datasets.find(node => node["@id"] === `${origin}/data/#rankings`)!;

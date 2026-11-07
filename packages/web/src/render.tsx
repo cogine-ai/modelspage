@@ -8,7 +8,7 @@ import { renderToString } from "hono/jsx/dom/server";
 import { existsSync, readFileSync, readdirSync } from "fs";
 import path from "path";
 import { extendPages, AdditionalFiles } from "../../../cogine/web/render.tsx";
-import { socialImageUrl } from "../../../cogine/web/site.ts";
+import { canonicalPageUrl, socialImageUrl } from "../../../cogine/web/site.ts";
 import { legacy } from "../../../cogine/web/legacy.ts";
 import { withLegacy } from "../../../cogine/src/legacy.ts";
 export { AdditionalFiles };
@@ -146,11 +146,12 @@ export function getRenderedPage(pathname: string) {
   return RenderedPages.get(normalizeRoute(pathname));
 }
 
-export function renderDocument(template: string, page: RenderedPage, requestOrigin?: string) {
+export function renderDocument(template: string, page: RenderedPage, route: string, requestOrigin?: string) {
   return template
     .replaceAll("__PAGE_TITLE__", escapeHtml(page.metadata.title))
     .replaceAll("__PAGE_DESCRIPTION__", escapeHtml(page.metadata.description))
     .replaceAll("__PAGE_IMAGE__", escapeHtml(socialImageUrl(requestOrigin)))
+    .replace("</head>", () => `<link rel="canonical" href="${escapeHtml(canonicalPageUrl(route))}"></head>`)
     .replace("<!--static-->", page.html);
 }
 
