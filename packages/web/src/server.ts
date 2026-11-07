@@ -1,19 +1,15 @@
 import Index from "../index.html";
-import { getRenderedPage, Models, Providers, SearchIndexJson, renderDocument, AdditionalFiles } from "./render";
+import { getRenderedPage, Models, Providers, ProvidersV2, CatalogWithLegacy, SearchIndexJson, renderDocument, AdditionalFiles } from "./render";
 import {
   filterCatalogByModelType,
   filterModelsByModelType,
   filterProvidersByModelType,
-  generateV2,
   InvalidModelTypeError,
   parseModelTypes,
 } from "@models.dev/core";
 import path from "path";
 import { additionalContentType, siteAssets } from "../../../cogine/web/site.ts";
-
-const ProvidersV2 = await generateV2(
-  path.join(import.meta.dir, "..", "..", "..", "providers"),
-);
+import { includesLegacy } from "../../../cogine/web/catalog-options.ts";
 
 const assetPort = Number(Bun.env.ASSET_PORT ?? 16000);
 
@@ -140,12 +136,13 @@ function catalogResponse(req: Request, endpoint: "api" | "models" | "catalog") {
     return Response.json({ error: error.message }, { status: 400 });
   }
 
+  const catalog = includesLegacy(new URL(req.url)) ? CatalogWithLegacy : { models: Models, providers: Providers };
   const value = endpoint === "api"
-    ? filterProvidersByModelType(Providers, filter)
+    ? filterProvidersByModelType(catalog.providers, filter)
     : endpoint === "models"
-      ? filterModelsByModelType(Models, filter)
+      ? filterModelsByModelType(catalog.models, filter)
       : filterCatalogByModelType(
-          { models: Models, providers: Providers },
+          catalog,
           filter,
         );
 

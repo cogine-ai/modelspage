@@ -1,0 +1,82 @@
+{
+  "models": {
+    "lab/old": {
+      "id": "lab/old",
+      "name": "Old",
+      "description": "Synthetic catalog contract model",
+      "release_date": "2026-06-30",
+      "legacy": true
+    },
+    "lab/current": {
+      "id": "lab/current",
+      "name": "Current",
+      "description": "Synthetic catalog contract model",
+      "release_date": "2026-10-01",
+      "legacy": false
+    }
+  },
+  "providers": {
+    "host": {
+      "id": "host",
+      "env": [
+        "HOST_API_KEY"
+      ],
+      "npm": "@ai-sdk/openai-compatible",
+      "api": "https://host.example/v1",
+      "name": "Host",
+      "doc": "https://host.example/docs",
+      "models": {
+        "old": {
+          "id": "old",
+          "name": "Old",
+          "description": "Synthetic catalog contract model",
+          "release_date": "2026-06-30",
+          "legacy": true,
+          "canonical_model_id": "lab/old",
+          "attachment": false,
+          "reasoning": false,
+          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "open_weights": false,
+          "limit": {
+            "context": 1024,
+            "output": 512
+          },
+          "last_updated": "2026-06-30"
+        },
+        "current": {
+          "id": "current",
+          "name": "Current",
+          "description": "Synthetic catalog contract model",
+          "release_date": "2026-10-01",
+          "legacy": false,
+          "canonical_model_id": "lab/current",
+          "attachment": false,
+          "reasoning": false,
+          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "open_weights": false,
+          "limit": {
+            "context": 1024,
+            "output": 512
+          },
+          "last_updated": "2026-10-01"
+        }
+      }
+    }
+  }
+}

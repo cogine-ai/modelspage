@@ -6,4 +6,6 @@ The negative examples separately demonstrate a request tracing ID used instead o
 
 The normal end-to-end fixture build uses the sibling upstream/OpenRouter fixtures and independently constructs a release in `dist/fixture`.
 
+`valid-catalog-legacy.json` demonstrates the optional `include=legacy` directory extension, separate from the versioned C/P/N Bundle. Shared and provider model records add one ordinary boolean. `invalid-catalog-legacy.json` uses a string instead; runtime validation rejects it. The extension preserves the upstream model/provider constraints and does not change the default catalog schema. Both files are synthetic fixtures.
+
 `valid-catalog-v2.json` and `valid-manifest-v2.json` add the weighted observed union, explicit UTC window/weights, known zero and null daily evidence. Catalog v2 requires projection/consumer 2.0; the manifest transport and immutable revision paths remain v1. New consumers continue reading v1 catalogs. `invalid-weighted-evidence-v2.json` has a score that contradicts its daily evidence and is rejected by semantic validation. All examples are synthetic.

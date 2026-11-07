@@ -1,10 +1,9 @@
 #!/usr/bin/env bun
 
-import { RenderedPages, Providers, Models, SearchIndexJson, renderDocument, AdditionalFiles } from "../src/render";
+import { RenderedPages, Providers, ProvidersV2, Models, CatalogWithLegacy, SearchIndexJson, renderDocument, AdditionalFiles } from "../src/render";
 import {
   filterCatalogByModelType,
   filterProvidersByModelType,
-  generateV2,
   MODEL_TYPES,
   type ModelTypeFilter,
 } from "@models.dev/core";
@@ -101,17 +100,19 @@ const variants: Array<[suffix: string, filter: ModelTypeFilter]> = [
   ...MODEL_TYPES.map((type): [string, ModelTypeFilter] => [`-${type}`, [type]]),
 ];
 
-const providersV2 = await generateV2(providersDir);
-
 for (const [suffix, filter] of variants) {
   const filtered = filterCatalogByModelType(catalog, filter);
   await Bun.write(`./dist/_api${suffix}.json`, JSON.stringify(filtered.providers));
   await Bun.write(`./dist/_models${suffix}.json`, JSON.stringify(filtered.models));
   await Bun.write(`./dist/_catalog${suffix}.json`, JSON.stringify(filtered));
+  const withLegacy = filterCatalogByModelType(CatalogWithLegacy, filter);
+  await Bun.write(`./dist/_api-legacy${suffix}.json`, JSON.stringify(withLegacy.providers));
+  await Bun.write(`./dist/_models-legacy${suffix}.json`, JSON.stringify(withLegacy.models));
+  await Bun.write(`./dist/_catalog-legacy${suffix}.json`, JSON.stringify(withLegacy));
   // v2 returns every model by default.
   await Bun.write(
     `./dist/_experimental_v2.0_api${suffix}.json`,
-    JSON.stringify(filterProvidersByModelType(providersV2, filter === "default" ? "all" : filter)),
+    JSON.stringify(filterProvidersByModelType(ProvidersV2, filter === "default" ? "all" : filter)),
   );
 }
 

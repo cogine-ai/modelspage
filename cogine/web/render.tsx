@@ -17,6 +17,7 @@ type RenderPage = (active: Section, content: unknown, metadata?: Page["metadata"
 
 export const AdditionalFiles = new Map<string, string>();
 AdditionalFiles.set(licensePath, upstreamLicense);
+AdditionalFiles.set("/catalog-legacy.schema.json", readFileSync(resolve(import.meta.dir, "../schema/catalog-legacy.schema.json"), "utf8"));
 
 export function extendPages(pages: Map<string, Page>, catalog: { models: Record<string, ModelMetadata>; providers: Record<string, Provider> }, renderPage: RenderPage) {
   const lock = JSON.parse(readFileSync(resolve(import.meta.dir, "../upstream.lock.json"), "utf8"));

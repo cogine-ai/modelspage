@@ -1,7 +1,7 @@
 /** @jsx jsx */
 /** @jsxImportSource hono/jsx */
 
-import { generateCatalog, logoErrors, readLabMetadata } from "@models.dev/core";
+import { generateCatalog, generateV2, logoErrors, readLabMetadata } from "@models.dev/core";
 import type { LabMetadataV2, Model, ModelMetadata, Provider } from "@models.dev/core";
 import { Fragment } from "hono/jsx";
 import { renderToString } from "hono/jsx/dom/server";
@@ -9,6 +9,8 @@ import { existsSync, readFileSync, readdirSync } from "fs";
 import path from "path";
 import { extendPages, AdditionalFiles } from "../../../cogine/web/render.tsx";
 import { socialImageUrl } from "../../../cogine/web/site.ts";
+import { legacy } from "../../../cogine/web/legacy.ts";
+import { withLegacy } from "../../../cogine/src/legacy.ts";
 export { AdditionalFiles };
 import {
   booleanText,
@@ -29,6 +31,8 @@ const Catalog = await generateCatalog(root);
 
 export const Models = Catalog.models;
 export const Providers = Catalog.providers;
+export const ProvidersV2 = await generateV2(path.join(root, "providers"));
+export const CatalogWithLegacy = withLegacy(Catalog, ProvidersV2, legacy);
 
 const LabMetadata = loadLabMetadata(root);
 const ProviderLogoSvgs = new Map<string, string>();
@@ -822,6 +826,7 @@ function ModelPage(props: { model: ModelEntry }) {
           ["Knowledge", knowledgeText(metadata.knowledge)],
           ["Release", metadata.release_date ?? "-"],
           ["Updated", metadata.last_updated ?? "-"],
+          ["Legacy", booleanText(legacy.model(model.id))],
           ["Weights", <WeightsValue metadata={metadata} />],
           ["Input", <FactModalities modalities={metadata.modalities?.input} />],
           ["Output types", <FactModalities modalities={metadata.modalities?.output} />],
@@ -979,7 +984,7 @@ function ModelTable(props: {
   showLab?: boolean;
 }) {
   const showLab = props.showLab ?? true;
-  const columns = showLab ? 14 : 13;
+  const columns = showLab ? 15 : 14;
 
   return (
     <TableSection
@@ -1006,6 +1011,7 @@ function ModelTable(props: {
             <SortableTh type="number">Price</SortableTh>
             <SortableTh>Release</SortableTh>
             <SortableTh sort="descending">Updated</SortableTh>
+            <th scope="col">Legacy</th>
           </tr>
         </thead>
         <tbody>
@@ -1068,6 +1074,7 @@ function ModelTable(props: {
                 <td data-sort={sortDate(metadata.last_updated)}>
                   {metadata.last_updated ?? "-"}
                 </td>
+                <td>{booleanText(legacy.model(model.id))}</td>
               </tr>
             );
           })}

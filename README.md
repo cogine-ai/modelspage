@@ -20,6 +20,8 @@ Modelspage 发布公共模型资料、经过核验的身份关联和 C/P/N 排�
 
 Web 直接复用固定的 models.dev 网站源码，保留原 Models、Providers、Labs 及详情、搜索、排序和原 JSON API，另外增加独立 [Rankings](https://models.cogine.ai/rankings/) 与 [Data](https://models.cogine.ai/data/) 页面。[正式发布验收](cogine/docs/2026-10-28-production-release.md)记录了域名、专桶凭据、条件写及合并自动发布的实际验证；[Web 运行方式](cogine/web/README.md)保留本地开发命令。
 
+提供普通 `legacy` 布尔字段：模型目录增加后部普通列，详情在 Updated 附近显示 Yes/No，不增加徽标、筛选或排序规则。名单维护在 [`legacy-models.json`](cogine/config/legacy-models.json)。JSON 通过 `/catalog.json?include=legacy`（同样适用于 `/models.json`、`/api.json`）显式读取；原默认响应和 C/P/N 合同不变，详见[字段合同](cogine/docs/data-contract.md#legacy-普通目录字段)。发布前本地验证见[验证记录](cogine/docs/2026-11-07-legacy-field-verification.md)。
+
 每日目录/N与C/P现已合并为一个固定输入审核流程，见[每日集成及本轮全盘验证](cogine/docs/2026-10-27-daily-cpn-integration.md)。已提交的 C/P 输入是加密快照，正式 builder 可解密并与模型目录/N构建同一版本；诊断与 builder 共用身份关联、AA headline 和加权计算。不会修改客户端可用成员。
 
 P 已确认按 OpenRouter 60%、Vercel 30%、Go/Free 10% 固定权重累加并集，任一来源/任一天有观测即可纳入；[规则与 1/2/3 日覆盖](cogine/docs/2026-10-26-popularity-weighted-union.md)保留了权重决策的历史证据；当前实现和生效条件见每日集成记录。

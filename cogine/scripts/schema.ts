@@ -1,10 +1,11 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { bundleSchema, manifestSchema } from "../src/schema.js";
+import { legacyCatalogSchema, legacyConfigSchema } from "../src/legacy.js";
 import { atomicWrite, stableStringify } from "../src/integrity.js";
 
 await mkdir("cogine/schema", { recursive: true });
-for (const [name, schema] of [["catalog", bundleSchema], ["manifest", manifestSchema]] as const) {
+for (const [name, schema] of [["catalog", bundleSchema], ["manifest", manifestSchema], ["catalog-legacy", legacyCatalogSchema], ["legacy-config", legacyConfigSchema]] as const) {
   const document = zodToJsonSchema(schema, { name, target: "jsonSchema7", $refStrategy: "root" });
   const content = stableStringify(document);
   const path = `cogine/schema/${name}.schema.json`;
