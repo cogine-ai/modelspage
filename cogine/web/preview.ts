@@ -1,11 +1,13 @@
 import { resolve, sep } from "node:path";
 import { filterCatalogByModelType, filterModelsByModelType, filterProvidersByModelType, InvalidModelTypeError, parseModelTypes } from "@models.dev/core";
+import { includesLegacy } from "./catalog-options.ts";
 
 // Serve the built files locally, including the original API query semantics.
 const root = resolve(import.meta.dir, "../../packages/web/dist");
 const catalogFile = Bun.file(resolve(root, "_catalog-all.json"));
 if (!await catalogFile.exists()) throw new Error("Run bun run web:build before web:preview");
 const catalog = await catalogFile.json();
+const catalogWithLegacy = await Bun.file(resolve(root, "_catalog-legacy-all.json")).json();
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port: Number(process.env.PORT ?? 8183),
@@ -14,7 +16,8 @@ const server = Bun.serve({
     if (["/api.json", "/models.json", "/catalog.json"].includes(url.pathname)) {
       try {
         const filter = parseModelTypes(url.searchParams.get("type"));
-        return Response.json(url.pathname === "/api.json" ? filterProvidersByModelType(catalog.providers, filter) : url.pathname === "/models.json" ? filterModelsByModelType(catalog.models, filter) : filterCatalogByModelType(catalog, filter));
+        const data = includesLegacy(url) ? catalogWithLegacy : catalog;
+        return Response.json(url.pathname === "/api.json" ? filterProvidersByModelType(data.providers, filter) : url.pathname === "/models.json" ? filterModelsByModelType(data.models, filter) : filterCatalogByModelType(data, filter));
       } catch (error) {
         if (error instanceof InvalidModelTypeError) return Response.json({ error: error.message }, { status: 400 });
         throw error;

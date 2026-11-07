@@ -27,6 +27,18 @@ catalog 和 manifest 的 revision 必须一致，对象 hash/大小和模块兼�
 
 生产 facts 是稀疏证据集合，只传输有效 N、显式 C/P 事实及映射/纠错所需的审核身份。缺席的模型仍可在客户端可用目录内，关联结果为 unmatched/unknown，按已声明的兜底顺序显示。稠密来源 inventory 和字段覆盖统计由 reports 生成，不随客户端对象传输。显式提供但未经许可的指标事实仍会到达发布校验并被拒绝，不能借稀疏化绕过使用条件。
 
+## Legacy 普通目录字段
+
+网站模型目录和型号详情将 `legacy` 作为普通属性展示，true 显示 Yes，false 显示 No。它表示当前是否标为传统；false 只表示未标，不保证已审核、主推、最新或更高能力。它独立于官方 status/deprecated/retired，不改变任何成员、名称、请求 ID、地址、路由、资格或 C/P/N 顺序。
+
+原生目录 JSON 使用严格 schema，因此扩展采用显式请求：`/catalog.json?include=legacy`、`/models.json?include=legacy`、`/api.json?include=legacy`。可与现有单个、重复或逗号分隔的 `type` 条件组合。省略 include 时响应保持原结构；`/experimental/v2.0/api.json`、`/rankings.json` 和版本化 `/v1/` C/P/N 数据不增加此字段。
+
+`/models.json` 的每份共享型号资料增加 `legacy: boolean`；`/api.json` 的每份 provider 模型资料增加同名字段；`/catalog.json` 包含这两个视图。输出只附加该布尔值，不带审核理由、时间、替代型号或逐条修订。机器合同为 [`catalog-legacy.schema.json`](../schema/catalog-legacy.schema.json)，网站构建同时提供 `/catalog-legacy.schema.json`；运行时类型和校验见 [`legacy.ts`](../src/legacy.ts)。这不是版本化 C/P/N Bundle 的新 schema 版本。
+
+唯一编辑入口为 [`legacy-models.json`](../config/legacy-models.json)，字段只有 schema_version、models、provider_overrides。精确服务覆盖项优先于具体共享版本名单，允许 true 和 false；没有关联时不猜 canonical ID。目录 v1 的 provider 模型对应上游解析器已解析的**首个协议**，因此服务判断使用该协议及 public/global/public 范围；单协议结论不会被解释成其他协议的标签。没有明确协议身份的旧 v1 alias 保持未标，不借短名猜服务。运行时不根据日期或榜单自动增删名单，维护历史交给 Git。
+
+结构正反例为 [`valid-catalog-legacy.json`](../fixtures/contracts/valid-catalog-legacy.json) 和 [`invalid-catalog-legacy.json`](../fixtures/contracts/invalid-catalog-legacy.json)，全部是合成资料。可选字段的机器 schema 与新配置 schema 由原 `schema:generate` / `schema:check` 命令同步生成和检查。
+
 ## 身份与字段
 
 身份由 `provider`、`request_model_id`、`scope.route`、`scope.region`、`scope.plan`、`scope.protocol` 组成。只有当前 Provider 模块能解释用户连接实际所属的 scope，公共投影不猜测账户、地域或套餐。显示名称和 canonical ID 不能替代请求身份。

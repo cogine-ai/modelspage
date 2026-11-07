@@ -8,6 +8,7 @@ import {
   type ModelTypeFilter,
   type ModelTypeValue,
 } from "@models.dev/core/src/filter.js";
+import { includesLegacy } from "./catalog-options.js";
 
 interface AssetBinding { fetch(request: Request): Promise<Response> }
 interface PublicObject {
@@ -34,11 +35,12 @@ interface CatalogProvider { models: Record<string, CatalogModel> }
 interface Catalog { models: Record<string, CatalogModel>; providers: Record<string, CatalogProvider> }
 type Endpoint = "api" | "models" | "catalog" | "experimental_v2.0_api";
 const catalogCache = new WeakMap<AssetBinding, Promise<Catalog>>();
+const legacyCatalogCache = new WeakMap<AssetBinding, Promise<Catalog>>();
 const manifestPath = "/v1/manifest.json";
 const revisionPath = /^\/v1\/revisions\/[a-f0-9]{64}\/catalog\.json$/;
 const manifestCache = "public, max-age=0, must-revalidate";
 const revisionCache = "public, max-age=31536000, immutable";
-const publicApis = new Set(["/api.json", "/models.json", "/catalog.json", "/model-schema.json", "/experimental/v2.0/api.json", "/rankings.json", "/rankings.schema.json"]);
+const publicApis = new Set(["/api.json", "/models.json", "/catalog.json", "/model-schema.json", "/experimental/v2.0/api.json", "/rankings.json", "/rankings.schema.json", "/catalog-legacy.schema.json"]);
 const publicDataPath = (pathname: string) => publicApis.has(pathname) || pathname === manifestPath || revisionPath.test(pathname);
 
 function cors(headers: Headers) {
@@ -61,25 +63,26 @@ function assetRequest(request: Request, pathname: string, clean = false) {
   return clean ? new Request(url, { method: "GET" }) : new Request(url, request);
 }
 
-async function fullCatalog(request: Request, assets: AssetBinding): Promise<Catalog> {
-  let pending = catalogCache.get(assets);
+async function fullCatalog(request: Request, assets: AssetBinding, legacy = false): Promise<Catalog> {
+  const cache = legacy ? legacyCatalogCache : catalogCache;
+  let pending = cache.get(assets);
   if (!pending) {
     pending = (async () => {
-      const response = await assets.fetch(assetRequest(request, "/_catalog-all.json", true));
+      const response = await assets.fetch(assetRequest(request, legacy ? "/_catalog-legacy-all.json" : "/_catalog-all.json", true));
       if (!response.ok || response.headers.get("Content-Type")?.includes("text/html")) throw new Error("Catalog asset is unavailable");
       return await response.json() as Catalog;
     })();
-    catalogCache.set(assets, pending);
+    cache.set(assets, pending);
     // A temporary asset error does not poison the isolate for later requests.
-    void pending.catch(() => { if (catalogCache.get(assets) === pending) catalogCache.delete(assets); });
+    void pending.catch(() => { if (cache.get(assets) === pending) cache.delete(assets); });
   }
   return pending;
 }
 
-async function catalogResponse(request: Request, env: Env, endpoint: Endpoint, filter: ModelTypeFilter) {
+async function catalogResponse(request: Request, env: Env, endpoint: Endpoint, filter: ModelTypeFilter, legacy = false) {
   const suffix = filter === "default" ? "" : filter === "all" ? "-all" : filter.length === 1 ? `-${filter[0]}` : null;
   if (suffix !== null) {
-    const response = await env.ASSETS.fetch(assetRequest(request, `/_${endpoint}${suffix}.json`));
+    const response = await env.ASSETS.fetch(assetRequest(request, `/_${endpoint}${legacy ? "-legacy" : ""}${suffix}.json`));
     if (!response.ok && response.status !== 304) return json({ error: "Catalog data is unavailable" }, response.status);
     if (response.headers.get("Content-Type")?.includes("text/html")) return json({ error: "Catalog data is unavailable" }, 404);
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers: cors(new Headers(response.headers)) });
@@ -90,7 +93,7 @@ async function catalogResponse(request: Request, env: Env, endpoint: Endpoint, f
     const providers = await response.json() as Catalog["providers"];
     return json(filterProvidersByModelType(providers, filter), 200, { "Cache-Control": "public, max-age=3600" });
   }
-  const catalog = await fullCatalog(request, env.ASSETS);
+  const catalog = await fullCatalog(request, env.ASSETS, legacy);
   const value = endpoint === "api" ? filterProvidersByModelType(catalog.providers, filter)
     : endpoint === "models" ? filterModelsByModelType(catalog.models, filter)
       : filterCatalogByModelType(catalog, filter);
@@ -159,7 +162,7 @@ async function route(request: Request, env: Env) {
       if (!(error instanceof InvalidModelTypeError)) throw error;
       return json({ error: error.message, allowed: [...MODEL_TYPES, "all"] }, 400);
     }
-    if (endpoint) return catalogResponse(request, env, endpoint, endpoint === "experimental_v2.0_api" && filter === "default" ? "all" : filter);
+    if (endpoint) return catalogResponse(request, env, endpoint, endpoint === "experimental_v2.0_api" && filter === "default" ? "all" : filter, endpoint !== "experimental_v2.0_api" && includesLegacy(url));
     const catalog = await fullCatalog(request, env.ASSETS);
     const providers = filterProvidersByModelType(catalog.providers, filter);
     return json({

@@ -29,6 +29,13 @@ function environment() {
     files.set(`/_api${suffix}.json`, { body: JSON.stringify(value.providers), type: "application/json", etag: `"api${suffix}"` });
     files.set(`/_models${suffix}.json`, { body: JSON.stringify(value.models), type: "application/json", etag: `"models${suffix}"` });
     files.set(`/_catalog${suffix}.json`, { body: JSON.stringify(value), type: "application/json", etag: `"catalog${suffix}"` });
+    const legacy = {
+      models: Object.fromEntries(Object.entries(value.models).map(([id, model]) => [id, { ...model, legacy: id === "chat" }])),
+      providers: Object.fromEntries(Object.entries(value.providers).map(([id, provider]) => [id, { ...provider, models: Object.fromEntries(Object.entries(provider.models).map(([id, model]) => [id, { ...model, legacy: id === "Vendor/Text:free" }])) }])),
+    };
+    for (const [endpoint, data] of [["models", legacy.models], ["api", legacy.providers], ["catalog", legacy]] as const) {
+      files.set(`/_${endpoint}-legacy${suffix}.json`, { body: JSON.stringify(data), type: "application/json", etag: `"${endpoint}-legacy${suffix}"` });
+    }
     const v2Models = catalog(group === "default" ? modelGroups.all! : models).providers["Host-A"].models;
     files.set(`/_experimental_v2.0_api${suffix}.json`, { body: JSON.stringify({ "V2-Host": { name: "V2 Host", models: v2Models } }), type: "application/json", etag: `"experimental${suffix}"` });
   }
@@ -65,6 +72,28 @@ function environment() {
   return { env, files, assetRequests, reads, objects };
 }
 const request = (env: Env, path: string, init?: RequestInit) => worker.fetch(new Request(base + path, init), env);
+
+test("legacy is opt-in in every catalog view, including repeated filters, cached assets and HEAD", async () => {
+  const { env } = environment();
+  const original = await (await request(env, "/catalog.json?type=all")).json();
+  const legacy = await (await request(env, "/catalog.json?type=all&include=legacy")).json();
+  expect(Object.keys(legacy.models)).toEqual(Object.keys(original.models));
+  expect(original.models.chat).toEqual(chat);
+  expect(legacy.models.chat).toEqual({ ...chat, legacy: true });
+  expect(legacy.providers["Host-A"].models["Vendor/Text:free"]).toEqual({ ...chat, legacy: true });
+  const multi = await (await request(env, "/catalog.json?include=legacy&type=chat&type=image")).json();
+  expect(Object.keys(multi.models)).toEqual(["chat", "image"]);
+  expect(multi.models.image.legacy).toBe(false);
+  expect((await (await request(env, "/models.json?include=legacy&type=image,decision")).json()).decision.legacy).toBe(false);
+  expect((await (await request(env, "/api.json?include=legacy&type=chat")).json())["Host-A"].models["Vendor/Text:free"].legacy).toBe(true);
+  expect((await (await request(env, "/catalog.json?type=chat&type=image")).json()).models.chat).toEqual(chat);
+  const unchanged = await request(env, "/catalog.json?include=legacy&type=all", { headers: { "If-None-Match": '"catalog-legacy-all"' } });
+  expect(unchanged.status).toBe(304);
+  expect(unchanged.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  const head = await request(env, "/models.json?include=legacy&type=all", { method: "HEAD" });
+  expect(head.status).toBe(200);
+  expect(await head.text()).toBe("");
+});
 
 test("public catalog APIs retain default, all, single, and multiple type semantics without changing request IDs", async () => {
   const { env, assetRequests } = environment();

@@ -46,6 +46,8 @@ PORT=8183 bun run web:preview
 
 `/rankings.json` 是 canonical 模型投影：本地模式标记 `audience: local-preview`，正式构建标记 `public` 并符合 `/rankings.schema.json`。Provider 专属、未关联 canonical 的成员仍在原 Provider 页面和完整原目录中；这里不凭名称把它们合并到 canonical 榜单。它没有替代现有 `/v1/manifest.json` / revision 合同，版本化 R2 数据渠道继续沿用原发布协议。
 
+`legacy` 只在模型目录表格末尾和详情现有属性区显示普通 Yes/No，不进入名称、搜索词、默认排序、Rankings 或新筛选控件。新增的目录 JSON 属性通过 `include=legacy` 显式读取，例如 `/catalog.json?type=all&include=legacy`；省略该参数仍返回原数据。构建、开发服务器、Pages worker 和本地预览共用此扩展规则；provider v1 条目按其实际首个协议应用精确服务例外。完整扩展 schema 在 `/catalog-legacy.schema.json`。维护名单见 [`legacy-models.json`](../config/legacy-models.json)。
+
 验证：
 
 ```sh
