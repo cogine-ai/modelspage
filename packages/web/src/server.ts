@@ -185,7 +185,7 @@ const server = Bun.serve({
       shellUrl.search = "";
 
       let html = await fetch(shellUrl.toString(), req).then((r) => r.text());
-      html = renderDocument(html, rendered, url.origin);
+      html = renderDocument(html, rendered, url.pathname, url.origin);
       return new Response(html, {
         headers: {
           "Content-Type": "text/html",

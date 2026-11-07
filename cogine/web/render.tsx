@@ -7,7 +7,7 @@ import { buildRankingDataset } from "./data.ts";
 import { validateBundle } from "../src/schema.ts";
 import { bundleRevision } from "../src/integrity.ts";
 import type { Bundle } from "../src/types.ts";
-import { licensePath, upstreamLicense } from "./site.ts";
+import { canonicalOrigin, licensePath, pageSitemap, upstreamLicense } from "./site.ts";
 import { selectPublishedDataset } from "./version.ts";
 import { pageStructuredData, serializeStructuredData, structuredDataId } from "./structured-data.ts";
 
@@ -45,9 +45,9 @@ export function extendPages(pages: Map<string, Page>, catalog: { models: Record<
     title: "Data | Modelspage", description: "Model catalogs and ranking datasets in JSON.",
   }));
 
-  const origin = process.env.MODELSPAGE_WEB_ORIGIN ?? "https://models.cogine.ai";
+  AdditionalFiles.set("/sitemap.xml", pageSitemap(pages.keys()));
   for (const [route, page] of pages) {
-    const schema = pageStructuredData(origin, route, page.metadata, catalog, dataset);
+    const schema = pageStructuredData(canonicalOrigin, route, page.metadata, catalog, dataset);
     pages.set(route, { ...page, html: `${page.html}<script type="application/ld+json" id="${structuredDataId}">${serializeStructuredData(schema)}</script>` });
   }
 }

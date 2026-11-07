@@ -35,9 +35,10 @@ export function rankingStructuredList(origin: string, rows: WebRankingModel[], m
 
 function datasets(origin: string, dataset: WebRankingDataset) {
   const url = pageUrl(origin, "/data"), catalogId = `${url}#data-catalog`;
+  const catalogIdentity = { "@type": "DataCatalog", "@id": catalogId, name: "Modelspage data", url };
   const source = { "@type": "CreativeWork", name: "models.dev", url: dataset.canonical_source.url, ...(dataset.canonical_source.commit ? { version: dataset.canonical_source.commit } : {}) };
   const download = (name: string, path: string) => ({ "@type": "DataDownload", name, encodingFormat: "application/json", contentUrl: new URL(path, origin).href });
-  const common = { url, isAccessibleForFree: true, publisher: ref(new URL("/#publisher", origin).href), includedInDataCatalog: ref(catalogId) };
+  const common = { url, isAccessibleForFree: true, publisher: ref(new URL("/#publisher", origin).href), includedInDataCatalog: catalogIdentity };
   const catalog: StructuredNode = {
     "@type": "Dataset", "@id": `${url}#model-catalog`, name: "Modelspage model catalog",
     description: "AI model specifications, providers, pricing, context limits, modalities, and release dates from models.dev.",
@@ -58,7 +59,7 @@ function datasets(origin: string, dataset: WebRankingDataset) {
     distribution: [download("Model rankings", "/rankings.json")],
   };
   const dataCatalog: StructuredNode = {
-    "@type": "DataCatalog", "@id": catalogId, name: "Modelspage data", url,
+    ...catalogIdentity,
     dataset: [ref(catalog["@id"] as string), ref(rankings["@id"] as string)],
   };
   return { catalog, rankings, dataCatalog };

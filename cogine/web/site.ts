@@ -4,6 +4,7 @@ import { rankingLicensePath } from "./ranking-license.ts";
 
 export const upstreamLicense = readFileSync(resolve(import.meta.dir, "../../LICENSE"), "utf8");
 export const licensePath = "/licenses/models-dev.txt";
+export const canonicalOrigin = "https://models.cogine.ai";
 export const licenseBanner = `/*!\n${upstreamLicense.trim()}\n*/`;
 export const siteAssets = new Map([
   ["/favicon.svg", resolve(import.meta.dir, "assets/favicon.svg")],
@@ -22,5 +23,19 @@ export function socialImageUrl(requestOrigin?: string) {
 }
 
 export function additionalContentType(path: string) {
+  if (path.endsWith(".xml")) return "application/xml; charset=utf-8";
   return path.endsWith(".txt") ? "text/plain; charset=utf-8" : "application/json; charset=utf-8";
+}
+
+export function canonicalPageUrl(route: string) {
+  const path = route === "/" ? route : `${route.replace(/\/$/, "")}/`;
+  return new URL(canonicalOrigin + path).href;
+}
+
+export function pageSitemap(routes: Iterable<string>) {
+  const entries = [...routes].sort().map(route => {
+    const url = canonicalPageUrl(route).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    return `  <url><loc>${url}</loc></url>`;
+  });
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join("\n")}\n</urlset>\n`;
 }

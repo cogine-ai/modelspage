@@ -84,7 +84,7 @@ for (const [route, rendered] of RenderedPages) {
     : path.join("./dist", route, "index.html");
 
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await Bun.write(filePath, renderDocument(template, rendered));
+  await Bun.write(filePath, renderDocument(template, rendered, route));
 }
 
 await Bun.write("./dist/search-index.json", SearchIndexJson);
