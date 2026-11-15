@@ -4,6 +4,7 @@ import { build } from "../src/build.ts";
 import { atomicWrite } from "../src/integrity.ts";
 import { validateWebRankingDataset } from "./schema.ts";
 import { readPublicBytes } from "../src/request.ts";
+import { publicationPlan } from "../scripts/production.ts";
 
 const root = resolve(import.meta.dir, "../..");
 const { values } = parseArgs({ args: Bun.argv.slice(2), strict: true, options: { "published-at": { type: "string" } } });
@@ -17,8 +18,9 @@ if (await present.exited) {
   if (await fetched.exited) throw new Error("The fixed upstream input could not be fetched");
 }
 const commit = Bun.spawn(["git", "show", "-s", "--format=%cI", "HEAD"], { cwd: root, stdout: "pipe", stderr: "pipe" });
-const clock = values["published-at"] ?? (await new Response(commit.stdout).text()).trim();
+const commitTime = (await new Response(commit.stdout).text()).trim();
 if (await commit.exited) throw new Error("Unable to resolve the reviewed commit build clock");
+const clock = publicationPlan(null, values["published-at"] ?? commitTime).published_at;
 const outDir = resolve(root, "dist/web-production-data");
 let previousPath: string | undefined;
 const { response: current, bytes } = await readPublicBytes(new URL("/rankings.json", origin), { allowNotFound: true, onEvent: public_read => console.error(JSON.stringify({ public_read })) });

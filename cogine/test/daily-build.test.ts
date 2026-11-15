@@ -7,6 +7,7 @@ import { sealRankingInput, type RankingInput } from "../src/ranking-input.js";
 import { readRelease } from "../src/publish.js";
 import { DirectoryStore } from "../src/store.js";
 import { publishRelease } from "../src/publish.js";
+import { publicationPlan } from "../scripts/production.js";
 const dirs:string[]=[];const oldKey=process.env.MODELSPAGE_INPUT_ENCRYPTION_KEY;
 afterEach(async()=>{ if(oldKey===undefined)delete process.env.MODELSPAGE_INPUT_ENCRYPTION_KEY;else process.env.MODELSPAGE_INPUT_ENCRYPTION_KEY=oldKey;for(const dir of dirs.splice(0))await rm(dir,{recursive:true,force:true}); });
 async function fixture(){
@@ -22,6 +23,18 @@ async function fixture(){
  const path=join(root,'private.json');await Bun.write(path,JSON.stringify(sealRankingInput(input)));
  return{root,path,input,options:{root,fixture:true,rankingsInputPath:path,publishedAt:'2026-10-27T00:00:00Z',sequence:1}};
 }
+test('website commit clocks use the UTC day for cohort checks and reproducible builds', async () => {
+ const { root, options } = await fixture();
+ const clocks = ['2026-10-25T23:30:00-05:00', '2026-10-27T00:30:00+14:00'];
+ for (const [index, commitTime] of clocks.entries()) {
+  const publishedAt = publicationPlan(null, commitTime).published_at;
+  const offset = await build({ ...options, publishedAt, outDir: join(root, `offset-${index}`) });
+  const utc = await build({ ...options, publishedAt: new Date(commitTime).toISOString(), outDir: join(root, `utc-${index}`) });
+  expect(offset.bundle.published_at.slice(0, 10)).toBe('2026-10-26');
+  expect(offset.bundle.revision).toBe(utc.bundle.revision);
+ }
+ await expect(build({ ...options, publishedAt: publicationPlan(null, '2026-10-26T01:00:00+08:00').published_at, outDir: join(root, 'future-cohort') })).rejects.toThrow('later than the fixed build clock');
+});
 test('one fixed encrypted cohort builds C/P/N together, reproduces byte-for-byte, and survives a later publication clock',async()=>{
  const {root,options}=await fixture();const a=await build({...options,outDir:join(root,'a')});const b=await build({...options,outDir:join(root,'b')});
  expect(a.bundle.schema_version).toBe(2);expect(a.bundle.revision).toBe(b.bundle.revision);
