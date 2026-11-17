@@ -5,7 +5,7 @@
 ## 工作目录、来源与组织
 
 - 操作前确认工作目录、Git origin、当前分支和未提交工作。保护现有历史与未提交工作；不默认强推、改写已发布历史、删除分支或引入 submodule。
-- `origin` 是 `cogine-ai/modelspage`，`upstream` 是 `anomalyco/models.dev`。从远端 HEAD 发现上游默认分支，不把当前分支名作为永久合同。同步通过可审查的 merge 和 PR。
+- `origin` 是 `cogine-ai/modelspage`，`upstream` 是 `anomalyco/models.dev`。从远端 HEAD 发现上游默认分支，不把当前分支名作为永久合同。同步通过可审查的 merge 和 PR。包含上游同步历史的 PR 必须使用 Merge commit（`gh pr merge --merge`）；禁止 Squash 或 Rebase merge，以保留上游祖先关系。合并前验证固定上游 commit 是 PR head 的祖先，合并后验证它仍是 main 的祖先。
 - 优先复用上游资料及解析器。自有代码、配置、测试与合同集中在 `cogine/`，禁止无关重构。固定上游 commit、Bun 版本、依赖锁文件和构建输入；CI 使用相同 Bun 与 frozen lockfile。
 - 上游贡献说明保存在 [`cogine/docs/upstream/AGENTS.md`](cogine/docs/upstream/AGENTS.md)。涉及 `models/`、`providers/`、`labs/` 和上游核心的修改继续适用其中的 schema、base_model、价格、logo、v1 兼容及来源规则；运行 `bun validate` 和 `bun run v1:check <已固定的上游基线 ref>`。本项目不承诺重建 models.dev 网站及全部 API。
 - 保留 LICENSE、版权和来源署名。导入的上游 workflows 只作惰性参考，位于 `cogine/docs/upstream/workflows/`。不得恢复上游生产部署、遥测、私人 runner 或机器人凭据依赖。
