@@ -1,5 +1,5 @@
 import { resolve, sep } from "node:path";
-import { filterCatalogByModelType, filterModelsByModelType, filterProvidersByModelType, InvalidModelTypeError, parseModelTypes } from "@models.dev/core";
+import { filterCatalogByModelType, filterModelsByModelType, filterProvidersByModelType, includedProviders, InvalidModelTypeError, parseModelTypes } from "@models.dev/core";
 import { includesLegacy } from "./catalog-options.ts";
 
 // Serve the built files locally, including the original API query semantics.
@@ -13,9 +13,15 @@ const server = Bun.serve({
   port: Number(process.env.PORT ?? 8183),
   async fetch(request) {
     const url = new URL(request.url);
-    if (["/api.json", "/models.json", "/catalog.json"].includes(url.pathname)) {
+    const experimental = url.pathname === "/experimental/v2.0/api.json";
+    if (experimental || ["/api.json", "/models.json", "/catalog.json"].includes(url.pathname)) {
       try {
-        const filter = parseModelTypes(url.searchParams.get("type"));
+        const filter = parseModelTypes(url.searchParams.getAll("type").join(","));
+        if (experimental) {
+          const variant = includedProviders(url.searchParams).has("openai-codex") ? "-optin" : "";
+          const providers = await Bun.file(resolve(root, `_experimental_v2.0_api${variant}-all.json`)).json();
+          return Response.json(filterProvidersByModelType(providers, filter === "default" ? "all" : filter));
+        }
         const data = includesLegacy(url) ? catalogWithLegacy : catalog;
         return Response.json(url.pathname === "/api.json" ? filterProvidersByModelType(data.providers, filter) : url.pathname === "/models.json" ? filterModelsByModelType(data.models, filter) : filterCatalogByModelType(data, filter));
       } catch (error) {
@@ -25,7 +31,7 @@ const server = Bun.serve({
     }
     let pathname: string;
     try { pathname = decodeURIComponent(url.pathname); } catch { return new Response("Invalid path", { status: 400 }); }
-    const relative = pathname === "/" ? "_index.html" : pathname === "/experimental/v2.0/api.json" ? "_experimental_v2.0_api.json" : pathname.slice(1);
+    const relative = pathname === "/" ? "_index.html" : pathname.slice(1);
     const path = resolve(root, relative);
     if (!path.startsWith(root + sep)) return new Response("Not found", { status: 404 });
     let file = Bun.file(path);

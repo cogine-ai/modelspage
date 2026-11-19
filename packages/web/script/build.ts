@@ -5,6 +5,7 @@ import {
   filterCatalogByModelType,
   filterProvidersByModelType,
   MODEL_TYPES,
+  providerView,
   type ModelTypeFilter,
 } from "@models.dev/core";
 import fs from "fs/promises";
@@ -109,11 +110,18 @@ for (const [suffix, filter] of variants) {
   await Bun.write(`./dist/_api-legacy${suffix}.json`, JSON.stringify(withLegacy.providers));
   await Bun.write(`./dist/_models-legacy${suffix}.json`, JSON.stringify(withLegacy.models));
   await Bun.write(`./dist/_catalog-legacy${suffix}.json`, JSON.stringify(withLegacy));
-  // v2 returns every model by default.
-  await Bun.write(
-    `./dist/_experimental_v2.0_api${suffix}.json`,
-    JSON.stringify(filterProvidersByModelType(ProvidersV2, filter === "default" ? "all" : filter)),
-  );
+  // v2 includes all model types by default, within the selected provider view.
+  for (const expanded of [false, true]) {
+    await Bun.write(
+      `./dist/_experimental_v2.0_api${expanded ? "-optin" : ""}${suffix}.json`,
+      JSON.stringify(
+        filterProvidersByModelType(
+          providerView(ProvidersV2, expanded),
+          filter === "default" ? "all" : filter,
+        ),
+      ),
+    );
+  }
 }
 
 await fs.rm("./dist/index.html", { force: true });

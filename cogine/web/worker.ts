@@ -8,6 +8,7 @@ import {
   type ModelTypeFilter,
   type ModelTypeValue,
 } from "@models.dev/core/src/filter.js";
+import { includedProviders } from "@models.dev/core/src/provider-view.js";
 import { includesLegacy } from "./catalog-options.js";
 
 interface AssetBinding { fetch(request: Request): Promise<Response> }
@@ -81,14 +82,17 @@ async function fullCatalog(request: Request, assets: AssetBinding, legacy = fals
 
 async function catalogResponse(request: Request, env: Env, endpoint: Endpoint, filter: ModelTypeFilter, legacy = false) {
   const suffix = filter === "default" ? "" : filter === "all" ? "-all" : filter.length === 1 ? `-${filter[0]}` : null;
+  const expandedV2 = endpoint === "experimental_v2.0_api"
+    && includedProviders(new URL(request.url).searchParams).has("openai-codex");
+  const variant = expandedV2 ? "-optin" : legacy ? "-legacy" : "";
   if (suffix !== null) {
-    const response = await env.ASSETS.fetch(assetRequest(request, `/_${endpoint}${legacy ? "-legacy" : ""}${suffix}.json`));
+    const response = await env.ASSETS.fetch(assetRequest(request, `/_${endpoint}${variant}${suffix}.json`));
     if (!response.ok && response.status !== 304) return json({ error: "Catalog data is unavailable" }, response.status);
     if (response.headers.get("Content-Type")?.includes("text/html")) return json({ error: "Catalog data is unavailable" }, 404);
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers: cors(new Headers(response.headers)) });
   }
   if (endpoint === "experimental_v2.0_api") {
-    const response = await env.ASSETS.fetch(assetRequest(request, "/_experimental_v2.0_api-all.json", true));
+    const response = await env.ASSETS.fetch(assetRequest(request, `/_experimental_v2.0_api${variant}-all.json`, true));
     if (!response.ok || response.headers.get("Content-Type")?.includes("text/html")) throw new Error("Experimental catalog asset is unavailable");
     const providers = await response.json() as Catalog["providers"];
     return json(filterProvidersByModelType(providers, filter), 200, { "Cache-Control": "public, max-age=3600" });
