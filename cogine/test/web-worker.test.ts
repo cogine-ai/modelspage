@@ -38,6 +38,7 @@ function environment() {
     }
     const v2Models = catalog(group === "default" ? modelGroups.all! : models).providers["Host-A"].models;
     files.set(`/_experimental_v2.0_api${suffix}.json`, { body: JSON.stringify({ "V2-Host": { name: "V2 Host", models: v2Models } }), type: "application/json", etag: `"experimental${suffix}"` });
+    files.set(`/_experimental_v2.0_api-optin${suffix}.json`, { body: JSON.stringify({ "V2-Host": { models: v2Models }, "openai-codex": { models: v2Models } }), type: "application/json", etag: `"experimental-optin${suffix}"` });
   }
   files.set("/logos/default.svg", { body: "<svg>default</svg>", type: "image/svg+xml" });
   files.set("/rankings", { body: "<h1>Rankings</h1>", type: "text/html" });
@@ -320,4 +321,21 @@ test("static public ranking datasets expose cache validators on GET/HEAD and pre
     expect(await (await request(env, path, { method: "HEAD" })).text()).toBe("");
     expect((await request(env, path, { method: "POST" })).status).toBe(405);
   }
+});
+
+test("experimental v2 exposes the opt-in provider only on explicit inclusion", async () => {
+  const { env } = environment();
+  const path = "/experimental/v2.0/api.json";
+  const defaultResponse = await request(env, path + "?include=legacy&type=all");
+  expect(await defaultResponse.json()).not.toHaveProperty("openai-codex");
+
+  const explicit = await request(env, path + "?include=openai-codex&type=decision", {
+    headers: { "If-None-Match": '"experimental-decision"' },
+  });
+  expect(explicit.status).toBe(200);
+  expect(explicit.headers.get("ETag")).toBe('"experimental-optin-decision"');
+  expect(Object.keys((await explicit.json())["openai-codex"].models)).toEqual(["decision"]);
+
+  const mixed = await request(env, path + "?include=legacy&include=other,%20openai-codex&type=chat&type=image");
+  expect(Object.keys((await mixed.json())["openai-codex"].models)).toEqual(["Vendor/Text:free", "image"]);
 });

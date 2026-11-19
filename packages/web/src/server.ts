@@ -5,7 +5,9 @@ import {
   filterModelsByModelType,
   filterProvidersByModelType,
   InvalidModelTypeError,
+  includedProviders,
   parseModelTypes,
+  providerView,
 } from "@models.dev/core";
 import path from "path";
 import { additionalContentType, siteAssets } from "../../../cogine/web/site.ts";
@@ -108,12 +110,8 @@ Bun.serve({
         },
       });
     },
-    "/experimental/v2.0/api.json": () =>
-      Response.json(ProvidersV2, {
-        headers: {
-          "Cache-Control": "public, max-age=3600",
-        },
-      }),
+    "/experimental/v2.0/api.json": (req) =>
+      catalogResponse(req, "experimental_v2.0_api"),
     "/search-index.json": () =>
       new Response(SearchIndexJson, {
         headers: {
@@ -127,24 +125,36 @@ Bun.serve({
   },
 });
 
-function catalogResponse(req: Request, endpoint: "api" | "models" | "catalog") {
+function catalogResponse(
+  req: Request,
+  endpoint: "api" | "models" | "catalog" | "experimental_v2.0_api",
+) {
+  const url = new URL(req.url);
   let filter;
   try {
-    filter = parseModelTypes(new URL(req.url).searchParams.getAll("type").join(","));
+    filter = parseModelTypes(url.searchParams.getAll("type").join(","));
   } catch (error) {
     if (!(error instanceof InvalidModelTypeError)) throw error;
     return Response.json({ error: error.message }, { status: 400 });
   }
 
-  const catalog = includesLegacy(new URL(req.url)) ? CatalogWithLegacy : { models: Models, providers: Providers };
-  const value = endpoint === "api"
-    ? filterProvidersByModelType(catalog.providers, filter)
-    : endpoint === "models"
-      ? filterModelsByModelType(catalog.models, filter)
-      : filterCatalogByModelType(
-          catalog,
-          filter,
-        );
+  const catalog = includesLegacy(url) ? CatalogWithLegacy : { models: Models, providers: Providers };
+  const value = endpoint === "experimental_v2.0_api"
+    ? filterProvidersByModelType(
+        providerView(
+          ProvidersV2,
+          includedProviders(url.searchParams).has("openai-codex"),
+        ),
+        filter === "default" ? "all" : filter,
+      )
+    : endpoint === "api"
+      ? filterProvidersByModelType(catalog.providers, filter)
+      : endpoint === "models"
+        ? filterModelsByModelType(catalog.models, filter)
+        : filterCatalogByModelType(
+            catalog,
+            filter,
+          );
 
   return Response.json(value, {
     headers: {
