@@ -112,7 +112,14 @@ test("daily collection fixes one trusted input cohort and isolates all write per
   expect(build.run).toContain('--no-env-file --config="$GITHUB_WORKSPACE/trusted/.sync/daily-runtime/bunfig.toml"');
   expect(build.run).toContain('--rankings-input "$GITHUB_WORKSPACE/candidate/cogine/data/rankings.json"');
   expect(build.env.MODELSPAGE_INPUT_ENCRYPTION_KEY).toBe("${{ secrets.MODELSPAGE_INPUT_ENCRYPTION_KEY }}");
+  const schema = workflow.jobs.schema;
+  expect(schema.needs).toBe("prepare");
+  expect(schema.permissions).toEqual({ contents: "read" });
+  expect(JSON.stringify(schema)).not.toContain("secrets.");
+  expect(JSON.stringify(schema)).not.toContain("MODELSPAGE_INPUT_ENCRYPTION_KEY");
+  expect(schema.steps.find((step: any) => step.run).run).toContain("cogine/scripts/schema.ts --check");
   const propose = workflow.jobs.propose;
+  expect(propose.needs).toEqual(["prepare", "schema"]);
   expect(propose.permissions).toEqual({ contents: "write", "pull-requests": "write", actions: "write" });
   expect(JSON.stringify(propose)).not.toContain("secrets.");
   expect(JSON.stringify(propose)).not.toContain("MODELSPAGE_INPUT_ENCRYPTION_KEY");
@@ -121,12 +128,13 @@ test("daily collection fixes one trusted input cohort and isolates all write per
   expect(JSON.stringify(workflow)).not.toContain("MODELSPAGE_R2_");
 });
 
-test("daily public artifacts contain only ciphertext, Git bundle and safe metadata", async () => {
+test("daily public artifacts contain only ciphertext, Git bundle, safe metadata and the public schema", async () => {
   const workflow = Bun.YAML.parse(await Bun.file(".github/workflows/modelspage-collect.yml").text()) as any;
   const uploads = Object.values(workflow.jobs).flatMap((job: any) => job.steps.filter((step: any) => step.uses?.startsWith("actions/upload-artifact@"))) as any[];
   expect(uploads.map(step => step.with.path.trim().split("\n"))).toEqual([
     ["trusted/.sync/proposal/rankings.json", "trusted/.sync/proposal/collection.json"],
     [".sync/packet/proposal.bundle", ".sync/packet/rankings.json", ".sync/packet/plan.json", ".sync/packet/review.json"],
+    [".sync/schema/candidate.sha", ".sync/schema/catalog-legacy.schema.json"],
   ]);
   expect(uploads.every(step => !/raw|private-build|catalog\.json|\*/.test(step.with.path))).toBe(true);
   for (const job of Object.values(workflow.jobs) as any[]) for (const step of job.steps) if (step.run) {
@@ -142,7 +150,9 @@ test("daily write job skips stale bases and existing automation PRs before any p
   const proposal = join(directory, ".sync/proposal");
   await mkdir(proposal, { recursive: true });
   const base = "a".repeat(40);
-  await writeFile(join(proposal, "plan.json"), JSON.stringify({ base_commit: base, candidate_commit: "b".repeat(40), branch: "automation/daily-bbbbbbbbbbbb-aaaaaaaaaaaa", validation: "validated", rankings_file_sha256: "c".repeat(64) }));
+  const plan = JSON.stringify({ base_commit: base, candidate_commit: "b".repeat(40), branch: "automation/daily-bbbbbbbbbbbb-aaaaaaaaaaaa", validation: "validated", rankings_file_sha256: "c".repeat(64) });
+  const planHash = new Bun.CryptoHasher("sha256").update(plan).digest("hex");
+  await writeFile(join(proposal, "plan.json"), plan);
   await writeFile(join(directory, "gh"), `#!/bin/sh
 printf '%s\\n' "$*" >> "$TEST_CALLS"
 case "$*" in
@@ -154,7 +164,7 @@ esac
   async function run(current: string, pulls: unknown[], apiError = false) {
     const summary = join(directory, "summary"), calls = join(directory, "calls");
     await writeFile(summary, ""); await writeFile(calls, "");
-    const child = Bun.spawn(["bash", "-e", "-c", script], { cwd: directory, env: { ...Bun.env, PATH: `${directory}:${Bun.env.PATH}`, BASE_COMMIT: base, DEFAULT_BRANCH: "trunk", GITHUB_REPOSITORY: "cogine-ai/modelspage", GITHUB_STEP_SUMMARY: summary, TEST_MAIN: current, TEST_PULLS: JSON.stringify([pulls]), TEST_CALLS: calls, TEST_API_ERROR: String(apiError) }, stdout: "pipe", stderr: "pipe" });
+    const child = Bun.spawn(["bash", "-e", "-c", script], { cwd: directory, env: { ...Bun.env, PATH: `${directory}:${Bun.env.PATH}`, BASE_COMMIT: base, PLAN_SHA256: planHash, DEFAULT_BRANCH: "trunk", GITHUB_REPOSITORY: "cogine-ai/modelspage", GITHUB_STEP_SUMMARY: summary, TEST_MAIN: current, TEST_PULLS: JSON.stringify([pulls]), TEST_CALLS: calls, TEST_API_ERROR: String(apiError) }, stdout: "pipe", stderr: "pipe" });
     expect(await child.exited).toBe(apiError ? 1 : 0);
     expect(await Bun.file(calls).text()).not.toContain("pr create");
     return await Bun.file(summary).text();
