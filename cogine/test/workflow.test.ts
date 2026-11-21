@@ -125,7 +125,8 @@ test("daily collection fixes one trusted input cohort and isolates all write per
   expect(schemaCheck).toBeGreaterThan(schemaBun);
   expect(schema.steps[schemaBun].with).toEqual({ "bun-version-file": "candidate/.bun-version", "no-cache": true });
   const publish = Bun.YAML.parse(await Bun.file(".github/workflows/modelspage-publish.yml").text()) as any;
-  for (const job of [workflow.jobs.collect, workflow.jobs.prepare, publish.jobs.publish]) {
+  const ci = Bun.YAML.parse(await Bun.file(".github/workflows/modelspage-ci.yml").text()) as any;
+  for (const job of [workflow.jobs.collect, workflow.jobs.prepare, publish.jobs.publish, ci.jobs.validate, ci.jobs["network-diagnostic"]]) {
     expect(job.steps.find((step: any) => step.uses?.startsWith("oven-sh/setup-bun@")).with["no-cache"]).toBe(true);
   }
   const propose = workflow.jobs.propose;
