@@ -8,7 +8,7 @@ import { providerModelToV2 } from "../../model-file-v2.js";
 import { ReasoningOption } from "../../schema.js";
 import { roundPrice } from "../../translate.js";
 import type { ExistingModel, SyncProvider, SyncedFullModel, SyncedModel } from "../index.js";
-import { factorBaseModel, resolveCanonicalBaseModel } from "./openrouter.js";
+import { factorBaseModel, freeFamily, resolveCanonicalBaseModel } from "./openrouter.js";
 
 const API_ENDPOINT = "https://ai-gateway.vercel.sh/v1/models";
 
@@ -326,6 +326,7 @@ export function buildVercelModel(
   return factorBaseModel(baseModel, {
     type: synced.type,
     name: synced.name,
+    family: freeFamily(baseModel, existing?.family),
     description: existing?.description,
     attachment: synced.attachment,
     reasoning: synced.reasoning,
@@ -474,7 +475,7 @@ function inferFamily(modelID: string, name: string) {
       if (family === "o") {
         return new RegExp(`(^|[^a-z0-9])${value}(?=\\d|$|[^a-z0-9])`).test(target);
       }
-      return new RegExp(`(^|[^a-z0-9])${value}(?=$|[^a-z0-9])`).test(target);
+      return new RegExp(`(^|[^a-z0-9])${value}(?=$|[^a-z0-9.]|\\.(?!\\d))`).test(target);
     });
 }
 
