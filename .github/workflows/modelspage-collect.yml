@@ -28,6 +28,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: trusted/.bun-version
+          no-cache: true
       - run: bun install --frozen-lockfile --ignore-scripts
         working-directory: trusted
       - name: Fix the trusted Bun runtime configuration
@@ -68,6 +69,7 @@ jobs:
     timeout-minutes: 25
     outputs:
       changed: ${{ steps.packet.outputs.changed }}
+      plan_sha256: ${{ steps.plan-digest.outputs.sha256 }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -84,6 +86,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: trusted/.bun-version
+          no-cache: true
       - run: bun install --frozen-lockfile --ignore-scripts
         working-directory: trusted
       - name: Fix the trusted Bun runtime configuration
@@ -147,6 +150,11 @@ jobs:
             --candidate "$GITHUB_WORKSPACE/candidate" --packet-dir "$GITHUB_WORKSPACE/.sync/packet" \
             --build-outcome "$BUILD_OUTCOME" --build-dir "$GITHUB_WORKSPACE/.sync/private-build" \
             --collection-report "$GITHUB_WORKSPACE/.sync/collection/collection.json"
+      - name: Bind the trusted plan before running candidate code
+        id: plan-digest
+        run: |
+          hash=$(sha256sum .sync/packet/plan.json)
+          echo "sha256=${hash%% *}" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -160,8 +168,78 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-  propose:
+  schema:
     needs: prepare
+    if: needs.prepare.outputs.changed == 'true'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          path: candidate
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: daily-review-proposal
+          path: .sync/proposal
+      # This runner executes candidate code. It has no project secrets or write permissions.
+      - name: Check out the exact prepared candidate
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          proposal="$GITHUB_WORKSPACE/.sync/proposal"
+          candidate=$(jq -er '.candidate_commit | select(test("^[a-f0-9]{40}$"))' "$proposal/plan.json")
+          git -c core.hooksPath=/dev/null fetch "$proposal/proposal.bundle" HEAD
+          test "$(git rev-parse FETCH_HEAD)" = "$candidate"
+          git -c core.hooksPath=/dev/null checkout --detach "$candidate"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: candidate/.bun-version
+          no-cache: true
+      - name: Generate and check schemas on the exact prepared candidate
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          candidate=$(git rev-parse HEAD)
+          result="$GITHUB_WORKSPACE/.sync/schema"
+          mkdir -p "$result"
+          config="$RUNNER_TEMP/modelspage-schema.bunfig.toml"
+          printf '# No candidate preloads.\n' > "$config"
+          log="$RUNNER_TEMP/modelspage-schema.log"
+          if ! {
+            bun --no-env-file --config="$config" install --frozen-lockfile --ignore-scripts &&
+            bun --no-env-file --config="$config" cogine/scripts/schema.ts &&
+            bun --no-env-file --config="$config" cogine/scripts/schema.ts --check
+          } > "$log" 2>&1; then
+            echo '::error::Daily schema generation or consistency check failed. Inspect the candidate schema generator before proposing it.'
+            exit 1
+          fi
+          legacy=cogine/schema/catalog-legacy.schema.json
+          if ! git diff --quiet HEAD -- . ":(exclude)$legacy" || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+            echo '::error::Schema generation changed files outside cogine/schema/catalog-legacy.schema.json; review the affected paths.'
+            git diff --name-status HEAD -- . ":(exclude)$legacy"
+            git ls-files --others --exclude-standard
+            exit 1
+          fi
+          test -f "$legacy" && test ! -L "$legacy"
+          cp "$legacy" "$result/catalog-legacy.schema.json"
+          printf '%s\n' "$candidate" > "$result/candidate.sha"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: daily-checked-schema
+          path: |
+            .sync/schema/candidate.sha
+            .sync/schema/catalog-legacy.schema.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  propose:
+    needs: [prepare, schema]
     if: needs.prepare.outputs.changed == 'true'
     permissions:
       contents: write
@@ -178,15 +256,21 @@ jobs:
         with:
           name: daily-review-proposal
           path: .sync/proposal
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: daily-checked-schema
+          path: .sync/schema
       # No Bun, source credentials, input decryption or candidate code in this write-capable job.
       - name: Propose one exact candidate without parallel review PRs or force pushes
         env:
           GH_TOKEN: ${{ github.token }}
           BASE_COMMIT: ${{ github.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          PLAN_SHA256: ${{ needs.prepare.outputs.plan_sha256 }}
         run: |
           set -euo pipefail
           plan=.sync/proposal/plan.json
+          test "$(sha256sum "$plan" | cut -d ' ' -f1)" = "$PLAN_SHA256"
           test "$(jq -er '.base_commit' "$plan")" = "$BASE_COMMIT"
           candidate=$(jq -er '.candidate_commit | select(test("^[a-f0-9]{40}$"))' "$plan")
           branch=$(jq -er '.branch | select(test("^automation/daily-[a-f0-9]{12}-[a-f0-9]{12}$"))' "$plan")
@@ -212,6 +296,34 @@ jobs:
           git diff --quiet "$BASE_COMMIT" "$candidate" -- .github/workflows README.md AGENTS.md
           test "$(sha256sum .sync/proposal/rankings.json | cut -d ' ' -f 1)" = "$input_hash"
           test "$(git show "$candidate:cogine/data/rankings.json" | sha256sum | cut -d ' ' -f 1)" = "$input_hash"
+          prepared=$candidate
+          test "$(cat .sync/schema/candidate.sha)" = "$prepared"
+          legacy=cogine/schema/catalog-legacy.schema.json
+          schema=.sync/schema/catalog-legacy.schema.json
+          test -f "$schema" && test ! -L "$schema"
+          test "$(wc -c < "$schema")" -le 1048576
+          jq -e -s 'length == 1 and (.[0].definitions["catalog-legacy"].properties | has("models") and has("providers"))' "$schema" > /dev/null
+          test "$(git ls-tree "$prepared" -- "$legacy" | cut -d' ' -f1)" = 100644
+          schema_status='checked; unchanged'
+          if ! git show "$prepared:$legacy" | cmp -s - "$schema"; then
+            # Treat the output as one JSON blob, never as a patch or Git bundle.
+            export GIT_INDEX_FILE="$RUNNER_TEMP/modelspage-proposal.index"
+            git read-tree "$prepared"
+            blob=$(git hash-object -w -- "$schema")
+            git update-index --cacheinfo "100644,$blob,$legacy"
+            tree=$(git write-tree)
+            export GIT_AUTHOR_NAME='modelspage-daily[bot]' GIT_COMMITTER_NAME='modelspage-daily[bot]'
+            export GIT_AUTHOR_EMAIL='modelspage-daily[bot]@users.noreply.github.com' GIT_COMMITTER_EMAIL='modelspage-daily[bot]@users.noreply.github.com'
+            export GIT_AUTHOR_DATE="$(jq -er .published_at "$plan")"
+            export GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+            candidate=$(git commit-tree "$tree" -p "$prepared" -m 'chore(schema): regenerate legacy catalog schema')
+            unset GIT_INDEX_FILE
+            test "$(git diff --name-only "$prepared" "$candidate")" = "$legacy"
+            branch="automation/daily-${candidate:0:12}-${BASE_COMMIT:0:12}"
+            # Earlier whole-bundle evidence belongs to the prepared SHA, not the new commit.
+            validation=manual_upstream_review_required
+            schema_status='regenerated and checked; exact final tree differs only by the generated schema'
+          fi
           remote=$(git ls-remote --heads origin "refs/heads/$branch" | cut -f 1)
           if [ -n "$remote" ] && [ "$remote" != "$candidate" ]; then
             echo 'Existing proposal branch has different contents; refusing to overwrite it.' >&2
@@ -227,6 +339,8 @@ jobs:
 
           Base: $BASE_COMMIT
           Candidate: $candidate
+          Prepared candidate: $prepared
+          Schema: $schema_status
           Validation: $validation
           Encrypted input SHA-256: $input_hash
 

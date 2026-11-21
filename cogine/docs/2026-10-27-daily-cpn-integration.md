@@ -13,6 +13,7 @@
 | `collect` | 固定触发 SHA 的 `trusted` checkout，仓库内容只读；来源 key 只在该受信采集步骤使用 | 解密已提交输入以 seed last-good；采集 C/P，输出加密 `rankings.json` 和安全操作报告 |
 | `prepare` | 独立只读 runner；`trusted` 与 `candidate` 都从同一触发 SHA 开始 | 受信同步脚本准备完整上游 merge、固定 upstream lock，再加入本轮加密输入 |
 | 整包验证 | 始终在 `trusted` cwd 执行绝对路径的受信 CLI，显式 `--root <candidate>` | 在同一候选目录／N／C/P 输入上构建与校验；结果保留在忽略目录，不上传明文 catalog |
+| `schema` | 独立 GitHub-hosted runner，只读且无项目密钥 | 从准备好的 Git bundle 检出精确候选，用固定 Bun 和 frozen lockfile 生成并检查 schema；只输出 legacy catalog schema 和输入 SHA |
 | `propose` | 独立写入任务，仅用 Git、jq、gh；没有来源 key 或输入解密 key，不运行 Bun／候选代码 | 校对 base、候选 commit、加密输入 hash 及 bundle，再推送精确候选并创建 draft 审核 PR |
 
 两个入口共享 `modelspage-daily-review` 并发组，`cancel-in-progress=false`。只有固定仓库、默认分支触发的受信流程能进入采集步骤；第三方 PR 不取得来源或解密 key。
@@ -30,6 +31,8 @@
 加密 cohort 包含当次已接受的全局权重／窗口策略、来源快照和身份关联所需目录。构建使用 cohort 的 `evaluation_date` 选择 C/P 统计窗口；合并日晚于采集日时，不会自行按合并日重新计算另一批未经审核的 C/P 结果。每个来源的 `retrieved_at`、`data_as_of` 和原始窗口仍单独保留，不拿本轮操作时间补造来源时间。
 
 单个来源失败、未修改或禁用时保留有效 last-good，并在操作报告记录这次尝试。整轮排名采集都失败且已有输入时，保留原 cohort，包括原评价日期。相同内容复用经认证的旧 envelope，不只为生成新 nonce 制造资料变更。
+
+Schema 检查失败或生成器改动其他文件时，工作流显示失败并暂停提案。提案 job 把生成结果作为单个 JSON blob 读取，核对准备 SHA，只允许更新 `cogine/schema/catalog-legacy.schema.json`。文件一致时沿用原 SHA 和整包结果；有差异时追加生成提交并标记 `manual_upstream_review_required`，前一 SHA 的整包结果不继承。新 PR 验证覆盖最终 SHA。
 
 候选打包前再次校对 commit、工作区和排名文件 hash。`whole_bundle_validated=true` 还必须通过受信 `readRelease` 的 schema、revision、catalog 路径、字节 hash 与 size 校验，并确认：
 
