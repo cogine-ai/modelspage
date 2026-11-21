@@ -117,7 +117,17 @@ test("daily collection fixes one trusted input cohort and isolates all write per
   expect(schema.permissions).toEqual({ contents: "read" });
   expect(JSON.stringify(schema)).not.toContain("secrets.");
   expect(JSON.stringify(schema)).not.toContain("MODELSPAGE_INPUT_ENCRYPTION_KEY");
-  expect(schema.steps.find((step: any) => step.run).run).toContain("cogine/scripts/schema.ts --check");
+  const candidateCheckout = schema.steps.findIndex((step: any) => step.run?.includes('checkout --detach "$candidate"'));
+  const schemaBun = schema.steps.findIndex((step: any) => step.uses?.startsWith("oven-sh/setup-bun@"));
+  const schemaCheck = schema.steps.findIndex((step: any) => step.run?.includes("cogine/scripts/schema.ts --check"));
+  expect(candidateCheckout).toBeGreaterThanOrEqual(0);
+  expect(schemaBun).toBeGreaterThan(candidateCheckout);
+  expect(schemaCheck).toBeGreaterThan(schemaBun);
+  expect(schema.steps[schemaBun].with).toEqual({ "bun-version-file": "candidate/.bun-version", "no-cache": true });
+  const publish = Bun.YAML.parse(await Bun.file(".github/workflows/modelspage-publish.yml").text()) as any;
+  for (const job of [workflow.jobs.collect, workflow.jobs.prepare, publish.jobs.publish]) {
+    expect(job.steps.find((step: any) => step.uses?.startsWith("oven-sh/setup-bun@")).with["no-cache"]).toBe(true);
+  }
   const propose = workflow.jobs.propose;
   expect(propose.needs).toEqual(["prepare", "schema"]);
   expect(propose.permissions).toEqual({ contents: "write", "pull-requests": "write", actions: "write" });

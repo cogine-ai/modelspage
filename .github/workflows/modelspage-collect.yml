@@ -28,6 +28,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: trusted/.bun-version
+          no-cache: true
       - run: bun install --frozen-lockfile --ignore-scripts
         working-directory: trusted
       - name: Fix the trusted Bun runtime configuration
@@ -85,6 +86,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: trusted/.bun-version
+          no-cache: true
       - run: bun install --frozen-lockfile --ignore-scripts
         working-directory: trusted
       - name: Fix the trusted Bun runtime configuration
@@ -180,24 +182,30 @@ jobs:
           path: candidate
           persist-credentials: false
           fetch-depth: 0
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version-file: candidate/.bun-version
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: daily-review-proposal
           path: .sync/proposal
       # This runner executes candidate code. It has no project secrets or write permissions.
-      - name: Generate and check schemas on the exact prepared candidate
+      - name: Check out the exact prepared candidate
         working-directory: candidate
         run: |
           set -euo pipefail
           proposal="$GITHUB_WORKSPACE/.sync/proposal"
-          result="$GITHUB_WORKSPACE/.sync/schema"
           candidate=$(jq -er '.candidate_commit | select(test("^[a-f0-9]{40}$"))' "$proposal/plan.json")
           git -c core.hooksPath=/dev/null fetch "$proposal/proposal.bundle" HEAD
           test "$(git rev-parse FETCH_HEAD)" = "$candidate"
           git -c core.hooksPath=/dev/null checkout --detach "$candidate"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: candidate/.bun-version
+          no-cache: true
+      - name: Generate and check schemas on the exact prepared candidate
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          candidate=$(git rev-parse HEAD)
+          result="$GITHUB_WORKSPACE/.sync/schema"
           mkdir -p "$result"
           config="$RUNNER_TEMP/modelspage-schema.bunfig.toml"
           printf '# No candidate preloads.\n' > "$config"
