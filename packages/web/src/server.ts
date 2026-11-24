@@ -5,7 +5,7 @@ import {
   filterModelsByModelType,
   filterProvidersByModelType,
   InvalidModelTypeError,
-  includedProviders,
+  includedOptIn,
   parseModelTypes,
   providerView,
 } from "@models.dev/core";
@@ -141,10 +141,7 @@ function catalogResponse(
   const catalog = includesLegacy(url) ? CatalogWithLegacy : { models: Models, providers: Providers };
   const value = endpoint === "experimental_v2.0_api"
     ? filterProvidersByModelType(
-        providerView(
-          ProvidersV2,
-          includedProviders(url.searchParams).has("openai-codex"),
-        ),
+        providerView(ProvidersV2, includedOptIn(url.searchParams)),
         filter === "default" ? "all" : filter,
       )
     : endpoint === "api"

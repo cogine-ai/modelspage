@@ -8,7 +8,7 @@ import {
   type ModelTypeFilter,
   type ModelTypeValue,
 } from "@models.dev/core/src/filter.js";
-import { includedProviders } from "@models.dev/core/src/provider-view.js";
+import { includedOptIn, optInSuffix } from "@models.dev/core/src/provider-view.js";
 import { includesLegacy } from "./catalog-options.js";
 
 interface AssetBinding { fetch(request: Request): Promise<Response> }
@@ -82,9 +82,9 @@ async function fullCatalog(request: Request, assets: AssetBinding, legacy = fals
 
 async function catalogResponse(request: Request, env: Env, endpoint: Endpoint, filter: ModelTypeFilter, legacy = false) {
   const suffix = filter === "default" ? "" : filter === "all" ? "-all" : filter.length === 1 ? `-${filter[0]}` : null;
-  const expandedV2 = endpoint === "experimental_v2.0_api"
-    && includedProviders(new URL(request.url).searchParams).has("openai-codex");
-  const variant = expandedV2 ? "-optin" : legacy ? "-legacy" : "";
+  const variant = endpoint === "experimental_v2.0_api"
+    ? optInSuffix(includedOptIn(new URL(request.url).searchParams))
+    : legacy ? "-legacy" : "";
   if (suffix !== null) {
     const response = await env.ASSETS.fetch(assetRequest(request, `/_${endpoint}${variant}${suffix}.json`));
     if (!response.ok && response.status !== 304) return json({ error: "Catalog data is unavailable" }, response.status);
