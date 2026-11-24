@@ -5,6 +5,8 @@ import {
   filterCatalogByModelType,
   filterProvidersByModelType,
   MODEL_TYPES,
+  optInSets,
+  optInSuffix,
   providerView,
   type ModelTypeFilter,
 } from "@models.dev/core";
@@ -111,12 +113,12 @@ for (const [suffix, filter] of variants) {
   await Bun.write(`./dist/_models-legacy${suffix}.json`, JSON.stringify(withLegacy.models));
   await Bun.write(`./dist/_catalog-legacy${suffix}.json`, JSON.stringify(withLegacy));
   // v2 includes all model types by default, within the selected provider view.
-  for (const expanded of [false, true]) {
+  for (const included of optInSets()) {
     await Bun.write(
-      `./dist/_experimental_v2.0_api${expanded ? "-optin" : ""}${suffix}.json`,
+      `./dist/_experimental_v2.0_api${optInSuffix(included)}${suffix}.json`,
       JSON.stringify(
         filterProvidersByModelType(
-          providerView(ProvidersV2, expanded),
+          providerView(ProvidersV2, included),
           filter === "default" ? "all" : filter,
         ),
       ),

@@ -1,5 +1,5 @@
 import { resolve, sep } from "node:path";
-import { filterCatalogByModelType, filterModelsByModelType, filterProvidersByModelType, includedProviders, InvalidModelTypeError, parseModelTypes } from "@models.dev/core";
+import { filterCatalogByModelType, filterModelsByModelType, filterProvidersByModelType, includedOptIn, InvalidModelTypeError, optInSuffix, parseModelTypes } from "@models.dev/core";
 import { includesLegacy } from "./catalog-options.ts";
 
 // Serve the built files locally, including the original API query semantics.
@@ -18,7 +18,7 @@ const server = Bun.serve({
       try {
         const filter = parseModelTypes(url.searchParams.getAll("type").join(","));
         if (experimental) {
-          const variant = includedProviders(url.searchParams).has("openai-codex") ? "-optin" : "";
+          const variant = optInSuffix(includedOptIn(url.searchParams));
           const providers = await Bun.file(resolve(root, `_experimental_v2.0_api${variant}-all.json`)).json();
           return Response.json(filterProvidersByModelType(providers, filter === "default" ? "all" : filter));
         }

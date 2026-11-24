@@ -367,6 +367,7 @@ export const ModelFamilyValues = [
 
   // Sarvam
   "sarvam",
+  "sarvam-prism",
 
   // Falcon
   "falcon",
@@ -427,6 +428,7 @@ export const ModelFamilyValues = [
   "ling-flash",
   "inkling",
   "inkling-small",
+  "inkling-mini",
   "ling-tiny",
   "ming-image",
   "ring",
@@ -530,6 +532,10 @@ export const ModelFamilyValues = [
 
   // Writer
   "palmyra",
+  "palmyra-vision",
+
+  // Paper Instruments
+  "ultramarine",
 
   // ALLaM
   "allam",
