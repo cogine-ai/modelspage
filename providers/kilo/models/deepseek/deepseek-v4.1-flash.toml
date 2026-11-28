@@ -12,11 +12,11 @@ structured_output = true
 
 [limit]
 context = 1_048_576
-output = 393_216
+output = 943_718
 
 [cost.text.input]
-price = 0.14
-cache = { read = 0.0042 }
+price = 0.051
+cache = { read = 0.018 }
 
 [cost.text.output]
-price = 0.42
+price = 0.567
