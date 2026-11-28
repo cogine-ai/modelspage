@@ -36,6 +36,7 @@ const Route = z.object({
 const Supported = z.object({ supported: z.boolean() }).passthrough();
 export const ConcentrateModel = z.object({
   id: z.string(),
+  name: z.string().optional(),
   author: z.object({ slug: z.string() }),
   max_input_tokens: z.number().int().positive(),
   max_tokens: z.number().int().positive(),
@@ -55,6 +56,7 @@ const BASE_MODEL_ALIASES: Record<string, string> = {
   "deepseek-r1-distill-32b": "deepseek/deepseek-r1-distill-qwen-32b",
   "deepseek-v4-1-fast": "deepseek/deepseek-v4.1-flash-1017",
   "deepseek-v4-1-flash-fast": "deepseek/deepseek-v4.1-flash",
+  "gpt-6-luna-decisions": "openai/gpt-6-luna",
   "gemma-4-26b": "google/gemma-4-26b-a4b-it",
   "grok-4.20-non-reasoning": "xai/grok-4.20-0309-non-reasoning",
   "ibm-granite-micro": "ibm/granite-4-h-micro",
@@ -166,8 +168,33 @@ export function buildConcentrateModel(model: ConcentrateModel): SyncedV2Model | 
     // System One takes model, state and questions only (no sampling parameters), and answers are structured.
     const sampling = Object.fromEntries(["temperature", "top_p", "top_k"].filter((key) => labFile?.capabilities?.[key] === true).map((key) => [key, false]));
     const capabilities = { structured_output: true, ...sampling };
-    const decisionLimit = clean({ context: limit.context === labFile?.limit?.context ? undefined : limit.context });
-    return { id: model.id, v2: clean({ schema: 2, v2_only: labFile?.v2_only, base_model: base, modalities: modalities(routes.map(([, route]) => route.supports), labFile, false), capabilities, limit: decisionLimit, api: { systemone }, cost: price }), ...(Object.keys(decisionLimit).length ? { header: `# Limit: max_input_tokens ${model.max_input_tokens} at ${API_ENDPOINT}, capped at the lab's` } : {}) };
+    const decisionLimit: Record<string, number> = clean({ context: limit.context === labFile?.limit?.context ? undefined : limit.context });
+    // A chat model listed again on decision routes only (OpenAI's gpt-6-luna on OpenAI's Decisions API, listed as
+    // gpt-6-luna-decisions) is published as a decision model of its own, under the catalog's name.
+    // It generates no text, so its output limit is 0, and the chat model's input limit can't exceed this context.
+    const chatLab = labFile?.type === undefined || labFile.type === "chat";
+    if (chatLab) decisionLimit.output = 0;
+    const omit = chatLab && typeof labFile?.limit?.input === "number" && labFile.limit.input > limit.context ? ["limit.input"] : undefined;
+    const input = modalities(routes.map(([, route]) => route.supports), chatLab ? undefined : labFile, false)?.input;
+    const decision = chatLab ? {
+      v2_only: true,
+      type: "decision",
+      name: model.name,
+      modalities: { input, output: ["decision"] },
+      tools: { supported: false },
+      reasoning: { supported: false },
+      // System One has no cache markers, so a cache-priced route caches the prefix implicitly.
+      cache: chosen?.tokens?.cache?.read === undefined ? undefined : implicitCache(firstParty?.cache),
+    } : undefined;
+    const header = [
+      ...(decisionLimit.context === undefined ? [] : [`# Limit: max_input_tokens ${model.max_input_tokens} at ${API_ENDPOINT}, capped at the lab's`]),
+      ...(chatLab ? [
+        "# Decision model: Concentrate lists the chat model on OpenAI's Decisions API as a model of its own",
+        "#   (https://concentrate.ai/docs/api-reference/endpoint/decisions). Decisions generates no text and bills no output",
+        "#   tokens, and caches a shared prefix of 1,024+ tokens implicitly (https://developers.openai.com/api/docs/guides/decisions).",
+      ] : []),
+    ];
+    return { id: model.id, v2: clean({ schema: 2, v2_only: decision?.v2_only ?? labFile?.v2_only, base_model: base, base_model_omit: omit, type: decision?.type, name: decision?.name, modalities: decision?.modalities ?? modalities(routes.map(([, route]) => route.supports), labFile, false), capabilities: decision ? clean({ ...capabilities, tools: decision.tools, reasoning: decision.reasoning, cache: decision.cache }) : capabilities, limit: decisionLimit, api: { systemone }, cost: price }), ...(header.length ? { header: header.join("\n") } : {}) };
   }
 
   // Concentrate routes each request to a route serving the features it uses, so a capability holds if any route serves it.
@@ -229,6 +256,11 @@ function cacheCapability(lab: unknown, routes: Route[]) {
   if (explicit) return lab;
   const { explicit: _, ...implicit } = lab as Record<string, unknown>;
   return Object.keys(implicit).length > 0 ? implicit : { implicit: true };
+}
+
+function implicitCache(lab: unknown) {
+  const implicit = lab !== null && typeof lab === "object" ? (lab as Record<string, unknown>).implicit : undefined;
+  return { implicit: implicit ?? true };
 }
 
 // The lab's controls on the levels this host accepts, never the full list the routes take: a lab toggle becomes
@@ -317,15 +349,18 @@ const highest = (moneys: (Money | undefined)[]) => moneys.filter((money) => mone
 function cost(standard: z.infer<typeof Price>, bands: (readonly [number, z.infer<typeof Price>])[], ttls?: string[]) {
   const tokens = standard.tokens!;
   // Write prices are keyed by the reference's cache TTLs (an unnamed one takes the first), leaving out TTLs it doesn't
-  // offer; when it lists no TTLs, the write price is a plain price, as the lab publishes it.
+  // offer, in the reference's order: v1 publishes only the first TTL's price, and the catalog may list 1h before 5m.
+  // When it lists no TTLs, the write price is a plain price, as the lab publishes it.
   const cache = (cached: Tokens["cache"]) => {
     const first = Object.values(cached?.write ?? {})[0];
+    const byTTL = new Map(Object.entries(cached?.write ?? {}).flatMap(([key, money]) => {
+      const ttl = key.match(/^ephemeral_(\w+)_input_tokens$/)?.[1] ?? (key === "cache_write_tokens" ? ttls?.[0] : undefined);
+      return ttl === undefined ? [] : [[ttl, money] as const];
+    }));
     return clean({
       read: cached?.read && perMillion(cached.read),
-      write: ttls === undefined ? first && perMillion(first) : clean(Object.fromEntries(Object.entries(cached?.write ?? {}).flatMap(([key, money]) => {
-        const ttl = key.match(/^ephemeral_(\w+)_input_tokens$/)?.[1] ?? (key === "cache_write_tokens" ? ttls?.[0] : undefined);
-        return ttl === undefined || !ttls.includes(ttl) ? [] : [[ttl, perMillion(money)]];
-      }))),
+      write: ttls === undefined ? first && perMillion(first)
+        : clean(Object.fromEntries(ttls.flatMap((ttl) => (byTTL.has(ttl) ? [[ttl, perMillion(byTTL.get(ttl)!)]] : [])))),
     });
   };
   // A band that costs the same as the one below it adds nothing.
